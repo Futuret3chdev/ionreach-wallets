@@ -154,7 +154,7 @@ export async function connectWallet(id: string): Promise<WalletSession> {
 export async function connectWalletConnect(): Promise<WalletSession> {
   const projectId = readProjectId();
   if (!projectId) {
-    throw new Error("Add a WalletConnect project id to reach mobile wallets. Injected wallets still work without it.");
+    throw new Error("WalletConnect is unavailable right now. Installed browser wallets still work.");
   }
   const mod = await import("@walletconnect/ethereum-provider");
   const EthereumProvider = mod.default;

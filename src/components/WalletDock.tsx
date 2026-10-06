@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Wallet } from "lucide-react";
 import { connectWallet, disconnectWallet, listWallets, startWalletDiscovery, subscribeWallets, type DiscoveredWallet } from "@/lib/wallet/connect";
-import { readProjectId, readSession, shortAddress, writeProjectId, writeSession, type WalletSession } from "@/lib/wallet/session";
+import { readSession, shortAddress, writeSession, type WalletSession } from "@/lib/wallet/session";
 
 export function WalletDock({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -9,11 +9,9 @@ export function WalletDock({ compact = false }: { compact?: boolean }) {
   const [wallets, setWallets] = useState<DiscoveredWallet[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [projectId, setProjectId] = useState("");
 
   useEffect(() => {
     setSession(readSession());
-    setProjectId(readProjectId());
     startWalletDiscovery();
     const refresh = () => setWallets(listWallets());
     refresh();
@@ -101,18 +99,6 @@ export function WalletDock({ compact = false }: { compact?: boolean }) {
             >
               {busy === "walletconnect" ? "Opening WalletConnect…" : "Any wallet via WalletConnect"}
             </button>
-            <label className="mt-3 block text-xs text-muted">
-              WalletConnect project id
-              <input
-                value={projectId}
-                onChange={(e) => {
-                  setProjectId(e.target.value);
-                  writeProjectId(e.target.value);
-                }}
-                placeholder="From cloud.reown.com"
-                className="mt-1 min-h-11 w-full border border-line bg-bg px-3 text-sm text-fg"
-              />
-            </label>
             {error && <p className="mt-2 text-sm text-ember">{error}</p>}
             <button type="button" onClick={() => setOpen(false)} className="mt-4 min-h-11 px-3 font-display text-muted">
               Close
