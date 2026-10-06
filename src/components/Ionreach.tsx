@@ -28,7 +28,6 @@ import { Renderer, type Cam } from "@/game/render";
 import { Sim, type HudSnap } from "@/game/sim";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { grantMarks, readProfile, writeSave, type SaveSlot } from "@/lib/meta/profile";
-import type { P2PRoom } from "@/lib/multiplayer";
 
 type Phase = "title" | "battle" | "win" | "lose";
 
@@ -113,7 +112,7 @@ export function Ionreach() {
   const lineRef = useRef("");
   const [best, setBest] = useState<number | null>(null);
   const [settings, setSettings] = useState(false);
-  const roomRef = useRef<P2PRoom | null>(null);
+  const [musicOn, setMusicOn] = useState(false);
   const phaseRef = useRef<Phase>("title");
 
   useEffect(() => {
@@ -752,20 +751,11 @@ export function Ionreach() {
           setHud(simRef.current?.snapshot() ?? null);
           setSettings(false);
         }}
-        onSendField={(send) => {
-          const sim = simRef.current;
-          if (!sim) return;
-          send({ t: "field", blob: sim.exportState() });
-        }}
-        onField={(blob) => {
-          const field = blob as { time: number; credits: number[]; nextId: number; winner: 0 | 1 | null; ion: number[]; ents: [] };
-          if (!simRef.current) return;
-          simRef.current.importState(field);
-          setHud(simRef.current.snapshot());
-        }}
-        onRoom={(room) => {
-          if (roomRef.current && roomRef.current !== room) roomRef.current.close();
-          roomRef.current = room;
+        musicOn={musicOn}
+        onMusic={(on) => {
+          setMusicOn(on);
+          if (on) sfx.current.startScore();
+          else sfx.current.stopScore();
         }}
       />
     </main>

@@ -1,36 +1,38 @@
 import { useEffect, useState } from "react";
 import { Wallet } from "lucide-react";
-import { connectWallet, disconnectWallet, listWallets, startWalletDiscovery, subscribeWallets, type DiscoveredWallet } from "@/lib/wallet/connect";
+import { connectSolana, listSolanaWallets, type SolanaWallet } from "@/lib/wallet/solana";
 import { readSession, shortAddress, writeSession, type WalletSession } from "@/lib/wallet/session";
+import { BUY_URL, T3X_MINT, t3xBalance } from "@/lib/wallet/t3x";
 
-export function WalletDock({ compact = false }: { compact?: boolean }) {
+export function WalletDock() {
   const [open, setOpen] = useState(false);
   const [session, setSession] = useState<WalletSession | null>(null);
-  const [wallets, setWallets] = useState<DiscoveredWallet[]>([]);
+  const [wallets, setWallets] = useState<SolanaWallet[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [balance, setBalance] = useState<number | null>(null);
 
   useEffect(() => {
     setSession(readSession());
-    startWalletDiscovery();
-    const refresh = () => setWallets(listWallets());
-    refresh();
-    const stop = subscribeWallets(refresh);
-    const t = window.setTimeout(refresh, 600);
-    return () => {
-      stop();
-      window.clearTimeout(t);
-    };
-  }, []);
+    setWallets(listSolanaWallets());
+  }, [open]);
 
   async function onConnect(id: string) {
     setBusy(id);
     setError("");
     try {
-      const next = await connectWallet(id);
+      const next = await connectSolana(id);
+      const held = await t3xBalance(next.address);
+      setBalance(held);
+      if (T3X_MINT && (held ?? 0) <= 0) {
+        writeSession(null);
+        setSession(null);
+        setError("This wallet has no T3X. Buy T3X, then connect again.");
+        return;
+      }
       writeSession(next);
       setSession(next);
-      setOpen(false);
+      if (!T3X_MINT) setError("Connected. Holder check turns on when the T3X mint is set.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Wallet connection failed.");
     } finally {
@@ -38,67 +40,53 @@ export function WalletDock({ compact = false }: { compact?: boolean }) {
     }
   }
 
-  async function onDisconnect() {
-    await disconnectWallet();
-    writeSession(null);
-    setSession(null);
-  }
-
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={
-          compact
-            ? "inline-flex min-h-11 items-center gap-2 border border-line bg-surface/90 px-3 font-display text-sm text-fg"
-            : "inline-flex min-h-11 items-center gap-2 border border-line bg-surface/80 px-5 font-display text-lg text-fg"
-        }
-      >
+      <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-11 items-center gap-2 border border-line bg-surface/80 px-5 font-display text-lg text-fg">
         <Wallet className="size-4" />
-        {session ? shortAddress(session.address) : "Connect wallet"}
+        {session ? shortAddress(session.address) : "Connect Solana wallet"}
       </button>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-bg/70 p-4 md:items-center">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-bg/70 p-4 md:items-center">
           <div className="w-full max-w-md border border-line bg-surface p-5">
-            <p className="font-display text-xs tracking-[0.22em] text-ion">ANY WALLET</p>
-            <h2 className="font-display text-2xl font-semibold">Link a callsign</h2>
-            <p className="mt-1 text-sm text-muted">Browser wallets are detected automatically. WalletConnect covers mobile wallets that are not installed here.</p>
+            <p className="font-display text-xs tracking-[0.22em] text-ion">SOLANA ONLY</p>
+            <h2 className="font-display text-2xl font-semibold">T3X wallet</h2>
+            <p className="mt-1 text-sm text-muted">Phantom, Solflare, and Backpack. A wallet must hold T3X. If it does not, buy some first.</p>
             {session && (
               <div className="mt-3 border border-line px-3 py-2 text-sm">
                 <p className="font-display text-ion">{session.walletName}</p>
-                <p className="break-all text-fg">{session.address}</p>
-                {session.chainId && <p className="text-muted">Chain {session.chainId}</p>}
-                <button type="button" onClick={onDisconnect} className="mt-2 min-h-11 text-ember">
+                <p className="break-all">{session.address}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    writeSession(null);
+                    setSession(null);
+                    setBalance(null);
+                  }}
+                  className="mt-2 min-h-11 text-ember"
+                >
                   Disconnect
                 </button>
               </div>
             )}
-            <ul className="mt-4 max-h-64 space-y-2 overflow-y-auto">
+            <ul className="mt-4 space-y-2">
               {wallets.map((w) => (
                 <li key={w.id}>
-                  <button
-                    type="button"
-                    disabled={busy !== null}
-                    onClick={() => onConnect(w.id)}
-                    className="flex min-h-11 w-full items-center gap-3 border border-line px-3 text-left"
-                  >
-                    {w.icon ? <img src={w.icon} alt="" className="size-6" /> : <Wallet className="size-4 text-ion" />}
-                    <span className="font-display">{busy === w.id ? "Waiting…" : w.name}</span>
-                    <span className="ml-auto text-xs text-muted">{w.family === "solana" ? "SOL" : "EVM"}</span>
+                  <button type="button" disabled={busy !== null} onClick={() => onConnect(w.id)} className="flex min-h-11 w-full items-center border border-line px-3 text-left font-display">
+                    {busy === w.id ? "Waiting…" : w.name}
                   </button>
                 </li>
               ))}
-              {wallets.length === 0 && <li className="text-sm text-muted">No injected wallet yet. Install one, or use WalletConnect below.</li>}
+              {wallets.length === 0 && <li className="text-sm text-muted">No Solana wallet in this browser.</li>}
             </ul>
-            <button
-              type="button"
-              disabled={busy !== null}
-              onClick={() => onConnect("walletconnect")}
-              className="mt-3 min-h-11 w-full bg-ion px-4 font-display text-bg"
-            >
-              {busy === "walletconnect" ? "Opening WalletConnect…" : "Any wallet via WalletConnect"}
-            </button>
+            {BUY_URL ? (
+              <a href={BUY_URL} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center bg-ion px-4 font-display text-bg">
+                Buy T3X
+              </a>
+            ) : (
+              <p className="mt-3 text-sm text-muted">Buy opens on Jupiter once the T3X mint is set.</p>
+            )}
+            {balance != null && <p className="mt-2 text-sm text-muted">Balance {balance} T3X</p>}
             {error && <p className="mt-2 text-sm text-ember">{error}</p>}
             <button type="button" onClick={() => setOpen(false)} className="mt-4 min-h-11 px-3 font-display text-muted">
               Close
