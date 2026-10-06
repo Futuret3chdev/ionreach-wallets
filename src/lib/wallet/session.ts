@@ -35,11 +35,16 @@ export function writeSession(session: WalletSession | null): void {
   else localStorage.setItem(KEY, JSON.stringify(session));
 }
 
+const DEFAULT_PROJECT_ID = "574fee125941f8394ce78c08701e6d62";
+
 export function readProjectId(): string {
   const fromEnv = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | undefined;
   if (fromEnv) return fromEnv;
-  if (typeof localStorage === "undefined") return "";
-  return localStorage.getItem(WC_KEY) ?? "";
+  if (typeof localStorage !== "undefined") {
+    const stored = localStorage.getItem(WC_KEY);
+    if (stored) return stored;
+  }
+  return DEFAULT_PROJECT_ID;
 }
 
 export function writeProjectId(id: string): void {
