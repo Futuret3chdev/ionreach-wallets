@@ -2,6 +2,7 @@ export class Sfx {
   private ctx: AudioContext | null = null;
   private scoreNodes: AudioNode[] = [];
   private noise: AudioBuffer | null = null;
+  private musicTimer: ReturnType<typeof setInterval> | null = null;
 
   unlock(): void {
     if (this.ctx) {
@@ -63,30 +64,23 @@ export class Sfx {
     this.stopScore();
     const ctx = this.ctx;
     if (!ctx) return;
-    const t = ctx.currentTime;
-    const master = ctx.createGain();
-    master.gain.setValueAtTime(0.0001, t);
-    master.gain.exponentialRampToValueAtTime(0.07, t + 0.6);
-    master.connect(ctx.destination);
-    this.scoreNodes.push(master);
-    for (const freq of [55, 82.5, 110]) {
-      const o = ctx.createOscillator();
-      o.type = freq === 55 ? "sawtooth" : "sine";
-      o.frequency.setValueAtTime(freq, t);
-      const g = ctx.createGain();
-      g.gain.value = freq === 55 ? 0.35 : 0.18;
-      const f = ctx.createBiquadFilter();
-      f.type = "lowpass";
-      f.frequency.value = 420;
-      o.connect(f);
-      f.connect(g);
-      g.connect(master);
-      o.start();
-      this.scoreNodes.push(o, g, f);
-    }
+    void ctx.resume();
+    const notes = [262, 330, 392, 523, 392, 330];
+    let step = 0;
+    const tick = () => {
+      this.tone(notes[step % notes.length], 0, 0.42, "triangle", 0.16);
+      this.tone(notes[step % notes.length] / 2, 0, 0.5, "sine", 0.08);
+      step += 1;
+    };
+    tick();
+    this.musicTimer = setInterval(tick, 680);
   }
 
   stopScore(): void {
+    if (this.musicTimer) {
+      clearInterval(this.musicTimer);
+      this.musicTimer = null;
+    }
     for (const n of this.scoreNodes) {
       try {
         if ("stop" in n && typeof (n as OscillatorNode).stop === "function") (n as OscillatorNode).stop();

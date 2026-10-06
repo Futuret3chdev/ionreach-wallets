@@ -113,6 +113,7 @@ export function Ionreach() {
   const [best, setBest] = useState<number | null>(null);
   const [settings, setSettings] = useState(false);
   const [musicOn, setMusicOn] = useState(false);
+  const musicOnRef = useRef(false);
   const phaseRef = useRef<Phase>("title");
 
   useEffect(() => {
@@ -436,7 +437,7 @@ export function Ionreach() {
 
   function deploy() {
     sfx.current.unlock();
-    sfx.current.stopScore();
+    if (musicOnRef.current) sfx.current.startScore();
     const sim = new Sim();
     applyLoadout(sim);
     simRef.current = sim;
@@ -469,7 +470,7 @@ export function Ionreach() {
   }
 
   function closeCinema() {
-    sfx.current.stopScore();
+    if (musicOnRef.current) sfx.current.startScore();
     setCinema(false);
     if (cutRef.current) {
       cutRef.current.pause();
@@ -489,7 +490,8 @@ export function Ionreach() {
     sfx.current.unlock();
     v.muted = !v.muted;
     setMuted(v.muted);
-    sfx.current.stopScore();
+    if (v.muted) sfx.current.stopScore();
+    else if (musicOnRef.current) sfx.current.startScore();
     if (!v.muted) void v.play().catch(() => undefined);
   }
 
@@ -753,6 +755,7 @@ export function Ionreach() {
         }}
         musicOn={musicOn}
         onMusic={(on) => {
+          musicOnRef.current = on;
           setMusicOn(on);
           if (on) sfx.current.startScore();
           else sfx.current.stopScore();
