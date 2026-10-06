@@ -1213,6 +1213,35 @@ export class Sim {
     };
   }
 
+  exportState() {
+    return {
+      v: 1,
+      time: this.time,
+      credits: [...this.credits],
+      nextId: this.nextId,
+      winner: this.winner,
+      ion: Array.from(this.ion),
+      ents: this.ents.filter((e) => e.alive).map((e) => ({ ...e, path: e.path ? e.path.map((pt) => ({ ...pt })) : null, queue: e.queue.map((q) => ({ ...q })) })),
+    };
+  }
+
+  importState(blob: { time: number; credits: number[]; nextId: number; winner: Team | null; ion: number[]; ents: Ent[] }): void {
+    this.ents = blob.ents.map((e) => ({ ...e, path: e.path ? e.path.map((pt) => ({ ...pt })) : null, queue: e.queue.map((q) => ({ ...q })) }));
+    this.by.clear();
+    for (const e of this.ents) this.by.set(e.id, e);
+    this.credits = [blob.credits[0] ?? 0, blob.credits[1] ?? 0];
+    this.time = blob.time;
+    this.nextId = blob.nextId;
+    this.winner = blob.winner;
+    this.ion.set(blob.ion);
+    this.selected = [];
+    this.placeKind = null;
+    this.messages = [{ text: "Field restored.", life: 2.4 }];
+    this.recomputeBlocks();
+    this.updateFog();
+    this.uiDirty = true;
+  }
+
   powerOf(team: Team): { prod: number; use: number; low: boolean } {
     let prod = 0;
     let use = 0;

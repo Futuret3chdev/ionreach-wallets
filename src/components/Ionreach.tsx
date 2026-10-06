@@ -26,7 +26,9 @@ import { BUILD_MENU, DEFS, UNIT_MENU, WORLD_H, WORLD_W, type Kind } from "@/game
 import { Sfx } from "@/game/audio";
 import { Renderer, type Cam } from "@/game/render";
 import { Sim, type HudSnap } from "@/game/sim";
-import { WalletDock } from "@/components/WalletDock";
+import { SettingsPanel } from "@/components/SettingsPanel";
+import { grantMarks, readProfile, writeSave, type SaveSlot } from "@/lib/meta/profile";
+import type { P2PRoom } from "@/lib/multiplayer";
 
 type Phase = "title" | "battle" | "win" | "lose";
 
@@ -110,6 +112,8 @@ export function Ionreach() {
   const [introLine, setIntroLine] = useState("Helion forward base.");
   const lineRef = useRef("");
   const [best, setBest] = useState<number | null>(null);
+  const [settings, setSettings] = useState(false);
+  const roomRef = useRef<P2PRoom | null>(null);
   const phaseRef = useRef<Phase>("title");
 
   useEffect(() => {
@@ -227,6 +231,11 @@ export function Ionreach() {
       if (sim.winner !== null && phaseRef.current === "battle") {
         const next = sim.winner === 0 ? "win" : "lose";
         phaseRef.current = next;
+        try {
+          grantMarks(next === "win" ? 25 : 8);
+        } catch {
+          /* ignore */
+        }
         if (next === "win") {
           try {
             const prev = Number(localStorage.getItem("ionreach-best") || "0");
@@ -412,10 +421,25 @@ export function Ionreach() {
     };
   }, [phase === "title" ? 0 : battleKey]);
 
+  function applyLoadout(sim: Sim) {
+    const gear = readProfile().equipped;
+    if (gear.includes("crate")) sim.credits[0] += 600;
+    if (gear.includes("plate")) {
+      const spire = sim.ents.find((e) => e.alive && e.team === 0 && e.kind === "spire");
+      if (spire) {
+        spire.maxHp += 500;
+        spire.hp += 500;
+      }
+    }
+    if (gear.includes("rig")) sim.addUnit("harvester", 0, 820, 1180);
+    if (gear.includes("wing")) sim.addUnit("kestrel", 0, 300, 980);
+  }
+
   function deploy() {
     sfx.current.unlock();
     sfx.current.stopScore();
     const sim = new Sim();
+    applyLoadout(sim);
     simRef.current = sim;
     camRef.current = { x: sim.pois.player.x + 160, y: sim.pois.player.y - 160, z: 0.92 };
     modeRef.current = "intro";
@@ -515,7 +539,7 @@ export function Ionreach() {
             <button type="button" onClick={deploy} className="min-h-11 bg-ion px-5 font-display text-lg font-semibold text-bg">
               Deploy
             </button>
-            <WalletDock />
+            <button type="button" onClick={() => setSettings(true)} className="min-h-11 border border-line bg-surface/80 px-5 font-display text-lg text-fg">Settings</button>
             <button type="button" onClick={() => openCinema(0)} className="inline-flex min-h-11 items-center gap-2 border border-line bg-surface/80 px-5 font-display text-lg text-fg">
               <Play className="size-4" />
               Play trailer
@@ -583,7 +607,7 @@ export function Ionreach() {
                 {hud?.paused && <p className="mt-2 bg-gold px-3 py-1 font-display text-bg">Paused</p>}
               </div>
               <div className="pointer-events-auto flex flex-col items-end gap-2">
-                <WalletDock compact />
+                <button type="button" onClick={() => setSettings(true)} className="min-h-11 border border-line bg-surface/90 px-3 font-display text-sm">Settings</button>
               <div className="border border-line bg-surface/90 px-3 py-2 text-right">
                 <p className="font-display text-2xl leading-none text-gold">{hud?.credits ?? 0}</p>
                 <p className="text-xs text-muted">cap {hud?.cap ?? 0}</p>
@@ -705,6 +729,45 @@ export function Ionreach() {
           {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
         </button>
       )}
+      <SettingsPanel
+        open={settings}
+        onClose={() => setSettings(false)}
+        onSave={(index) => {
+          const sim = simRef.current;
+          if (!sim) return null;
+          const slot: SaveSlot = { name: `Slot ${index + 1}`, savedAt: Date.now(), time: sim.time, blob: sim.exportState() };
+          writeSave(index, slot);
+          return slot;
+        }}
+        onLoad={(slot) => {
+          const blob = slot.blob as { time: number; credits: number[]; nextId: number; winner: 0 | 1 | null; ion: number[]; ents: [] };
+          if (!simRef.current) {
+            const sim = new Sim();
+            simRef.current = sim;
+            phaseRef.current = "battle";
+            setPhase("battle");
+            setBattleKey((k) => k + 1);
+          }
+          simRef.current?.importState(blob);
+          setHud(simRef.current?.snapshot() ?? null);
+          setSettings(false);
+        }}
+        onSendField={(send) => {
+          const sim = simRef.current;
+          if (!sim) return;
+          send({ t: "field", blob: sim.exportState() });
+        }}
+        onField={(blob) => {
+          const field = blob as { time: number; credits: number[]; nextId: number; winner: 0 | 1 | null; ion: number[]; ents: [] };
+          if (!simRef.current) return;
+          simRef.current.importState(field);
+          setHud(simRef.current.snapshot());
+        }}
+        onRoom={(room) => {
+          if (roomRef.current && roomRef.current !== room) roomRef.current.close();
+          roomRef.current = room;
+        }}
+      />
     </main>
   );
 }
