@@ -519,16 +519,7 @@ export function Ionreach() {
         loop
         preload="auto"
       />
-      {!battle && <div className="absolute inset-0 bg-bg/55" />}
-      {!battle && (
-        <div className="pointer-events-none absolute top-4 left-5 z-20 flex items-center gap-3 md:top-8 md:left-12">
-          <img src="/brand/futuret3ch.png" alt="" className="h-16 w-16 object-contain" />
-          <div>
-            <p className="font-display text-2xl font-bold tracking-[0.2em] text-fg">FUTURET3CH</p>
-            <p className="font-display text-sm tracking-[0.28em] text-ion">CALLSIGN T3X</p>
-          </div>
-        </div>
-      )}
+      {!battle && <div className="absolute inset-0 bg-bg/45" />}
       {!battle && (
         <div className="relative z-10 flex h-full flex-col justify-end px-5 py-6 md:px-12 md:py-10">
           <p className="font-display text-sm tracking-[0.28em] text-ion">HELION DIRECTORATE · T3X</p>
@@ -550,7 +541,7 @@ export function Ionreach() {
             </button>
           </div>
           <p className="mt-6 max-w-lg text-xs text-muted">
-            Original battle sim. Not affiliated with any classic strategy publisher.
+            Supported by Futuret3ch. Original battle sim. Not affiliated with any classic strategy publisher.
             {best ? ` Fastest hold: ${clock(best)}.` : ""}
           </p>
         </div>
@@ -593,11 +584,11 @@ export function Ionreach() {
           <canvas ref={canvasRef} className="absolute inset-0 h-full w-full touch-none" />
           <div className="pointer-events-none absolute inset-0 flex flex-col">
             <header className="flex items-start justify-between gap-2 p-3">
-              <div className="pointer-events-auto flex items-center gap-2 border border-line bg-surface/90 px-3 py-2">
-                <img src="/brand/futuret3ch.png" alt="" className="h-12 w-12 object-contain" />
+              <div className="pointer-events-auto flex items-center gap-2 bg-bg/40 px-2 py-1.5 backdrop-blur-sm">
+                <img src="/brand/futuret3ch.png?v=2" alt="" className="h-10 w-10 object-contain" />
                 <div>
-                  <p className="font-display text-lg leading-none font-bold tracking-[0.16em] text-fg">FUTURET3CH</p>
-                  <p className="mt-1 font-display text-xs tracking-[0.22em] text-ion">IONREACH · T3X</p>
+                  <p className="font-display text-[10px] leading-none tracking-[0.2em] text-muted">SUPPORTED BY</p>
+                  <p className="mt-1 font-display text-sm leading-none font-bold tracking-[0.14em] text-fg">FUTURET3CH</p>
                   <p className="mt-1 font-display text-xl leading-none">{clock(hud?.time ?? 0)}</p>
                 </div>
               </div>
@@ -761,6 +752,7 @@ export function Ionreach() {
           else sfx.current.stopScore();
         }}
       />
+      <img src="/brand/t3x-coin.png" alt="T3x" className="pointer-events-none absolute right-3 bottom-36 z-40 h-16 w-16 object-contain drop-shadow-[0_6px_16px_rgba(0,0,0,0.65)] md:right-4 md:bottom-40 md:h-20 md:w-20" />
     </main>
   );
 }

@@ -629,7 +629,7 @@ export class Renderer {
     if (this.crestStarted) return;
     this.crestStarted = true;
     const img = new Image();
-    img.src = "/brand/futuret3ch.png";
+    img.src = "/brand/futuret3ch.png?v=2";
     img.onload = () => {
       const c = document.createElement("canvas");
       c.width = img.naturalWidth || img.width;
