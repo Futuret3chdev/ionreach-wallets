@@ -17,7 +17,6 @@ import {
   type Team,
   type TechWing,
 } from "./content";
-import { chapterById } from "./campaign";
 import { buildMap, type BuiltMap } from "./map";
 
 export interface Ent {
@@ -200,9 +199,6 @@ export class Sim {
   tiles: Uint8Array;
   ion: Uint16Array;
   style: Float32Array;
-  flora: Uint8Array;
-  chapterId: string;
-  downed = { men: 0, tanks: 0, planes: 0, structures: 0 };
   block: Uint8Array;
   occ: Int32Array;
   credits: [number, number] = [2100, 1700];
@@ -239,14 +235,11 @@ export class Sim {
   abilityArm: "strike" | "nuke" | null = null;
   private by = new Map<number, Ent>();
 
-  constructor(chapterId = "usa") {
-    const chapter = chapterById(chapterId);
-    this.chapterId = chapter.id;
-    this.pois = buildMap(chapter);
+  constructor() {
+    this.pois = buildMap();
     this.tiles = this.pois.tiles;
     this.ion = this.pois.ion;
     this.style = this.pois.style;
-    this.flora = this.pois.flora;
     this.block = new Uint8Array(COLS * ROWS);
     this.occ = new Int32Array(COLS * ROWS);
     this.explored = new Uint8Array(COLS * ROWS);
@@ -782,20 +775,6 @@ export class Sim {
     }
     this.selected = this.selected.filter((id) => id !== e.id);
     this.uiDirty = true;
-    if (e.team === 1) {
-      if (DEFS[e.kind].air) this.downed.planes += 1;
-      else if (DEFS[e.kind].building) this.downed.structures += 1;
-      else if (
-        e.kind === "rifle" ||
-        e.kind === "rocket" ||
-        e.kind === "watch" ||
-        e.kind === "patrol" ||
-        e.kind === "grenadier" ||
-        e.kind === "sergeant" ||
-        e.kind === "specops"
-      ) this.downed.men += 1;
-      else this.downed.tanks += 1;
-    }
     if (e.kind === "spire") {
       const still = this.ents.some((o) => o.alive && o.team === e.team && o.kind === "spire");
       if (!still && this.winner === null) {
@@ -1597,7 +1576,7 @@ export class Sim {
 
   recomputeBlocks(): void {
     for (let i = 0; i < this.block.length; i++) {
-      this.block[i] = this.tiles[i] === 1 || this.tiles[i] === 3 ? 1 : 0;
+      this.block[i] = this.tiles[i] === 1 ? 1 : 0;
       this.occ[i] = 0;
     }
     for (const e of this.ents) {
