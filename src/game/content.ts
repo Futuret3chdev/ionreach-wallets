@@ -13,9 +13,16 @@ export const KINDS = [
   "turret",
   "silo",
   "rifle",
+  "watch",
+  "patrol",
+  "grenadier",
+  "sergeant",
+  "specops",
   "rocket",
   "harvester",
   "lancer",
+  "reaver",
+  "howl",
   "bastion",
   "wall",
   "sam",
@@ -26,6 +33,8 @@ export const KINDS = [
   "t3x",
   "kestrel",
   "condor",
+  "ionwing",
+  "spectre",
 ] as const;
 
 export type Kind = (typeof KINDS)[number];
@@ -61,6 +70,8 @@ export interface Def {
   air?: boolean;
   /** What this weapon is allowed to track. */
   vs?: "ground" | "air" | "any";
+  /** Tech tier required on the producing structure. Defaults to 1. */
+  tier?: number;
 }
 
 export const DEFS: Record<Kind, Def> = {
@@ -244,6 +255,127 @@ export const DEFS: Record<Kind, Def> = {
     projectile: "bolt",
     building: false,
     builtBy: "barracks",
+    tier: 1,
+  },
+  watch: {
+    kind: "watch",
+    name: "Watch",
+    blurb: "Lookouts. They see farther than they hit.",
+    cost: 80,
+    time: 4,
+    hp: 46,
+    speed: 88,
+    range: 130,
+    rof: 0.9,
+    dmg: 6,
+    armor: "light",
+    radius: 10,
+    fw: 0,
+    fh: 0,
+    vision: 280,
+    drain: 0,
+    power: 0,
+    cargo: 0,
+    projectile: "bolt",
+    building: false,
+    builtBy: "barracks",
+    tier: 1,
+  },
+  patrol: {
+    kind: "patrol",
+    name: "Patrolman",
+    blurb: "A handler and a dog. Fast on the glass.",
+    cost: 160,
+    time: 6,
+    hp: 78,
+    speed: 96,
+    range: 100,
+    rof: 0.62,
+    dmg: 11,
+    armor: "light",
+    radius: 11,
+    fw: 0,
+    fh: 0,
+    vision: 240,
+    drain: 0,
+    power: 0,
+    cargo: 0,
+    projectile: "bolt",
+    building: false,
+    builtBy: "barracks",
+    tier: 2,
+  },
+  grenadier: {
+    kind: "grenadier",
+    name: "Grenadier",
+    blurb: "Throws into a squad. Mean at close range.",
+    cost: 220,
+    time: 7,
+    hp: 70,
+    speed: 70,
+    range: 118,
+    rof: 1.35,
+    dmg: 18,
+    armor: "light",
+    radius: 11,
+    fw: 0,
+    fh: 0,
+    vision: 200,
+    drain: 0,
+    power: 0,
+    cargo: 0,
+    projectile: "shell",
+    building: false,
+    builtBy: "barracks",
+    tier: 2,
+  },
+  sergeant: {
+    kind: "sergeant",
+    name: "Sergeant",
+    blurb: "Ranked rifle. Holds a line the others follow.",
+    cost: 280,
+    time: 8,
+    hp: 110,
+    speed: 78,
+    range: 124,
+    rof: 0.58,
+    dmg: 14,
+    armor: "light",
+    radius: 11,
+    fw: 0,
+    fh: 0,
+    vision: 230,
+    drain: 0,
+    power: 0,
+    cargo: 0,
+    projectile: "bolt",
+    building: false,
+    builtBy: "barracks",
+    tier: 3,
+  },
+  specops: {
+    kind: "specops",
+    name: "Special Forces",
+    blurb: "Last tier of the barracks. Quiet, and they finish the job.",
+    cost: 420,
+    time: 11,
+    hp: 140,
+    speed: 100,
+    range: 140,
+    rof: 0.48,
+    dmg: 18,
+    armor: "light",
+    radius: 11,
+    fw: 0,
+    fh: 0,
+    vision: 260,
+    drain: 0,
+    power: 0,
+    cargo: 0,
+    projectile: "bolt",
+    building: false,
+    builtBy: "barracks",
+    tier: 4,
   },
   rocket: {
     kind: "rocket",
@@ -267,6 +399,7 @@ export const DEFS: Record<Kind, Def> = {
     projectile: "rocket",
     building: false,
     builtBy: "barracks",
+    tier: 2,
   },
   harvester: {
     kind: "harvester",
@@ -313,6 +446,57 @@ export const DEFS: Record<Kind, Def> = {
     projectile: "shell",
     building: false,
     builtBy: "bay",
+    tier: 1,
+  },
+  reaver: {
+    kind: "reaver",
+    name: "Reaver",
+    blurb: "Machine tank. A hose of fire for infantry.",
+    cost: 640,
+    time: 11,
+    hp: 240,
+    speed: 78,
+    range: 140,
+    rof: 0.28,
+    dmg: 7,
+    armor: "heavy",
+    radius: 14,
+    fw: 0,
+    fh: 0,
+    vision: 230,
+    drain: 0,
+    power: 0,
+    cargo: 0,
+    projectile: "bolt",
+    building: false,
+    builtBy: "bay",
+    vs: "ground",
+    tier: 2,
+  },
+  howl: {
+    kind: "howl",
+    name: "Howl",
+    blurb: "Grenade tank. Lobs into packs and walls.",
+    cost: 860,
+    time: 13,
+    hp: 340,
+    speed: 58,
+    range: 170,
+    rof: 1.45,
+    dmg: 28,
+    armor: "heavy",
+    radius: 16,
+    fw: 0,
+    fh: 0,
+    vision: 220,
+    drain: 0,
+    power: 0,
+    cargo: 0,
+    projectile: "shell",
+    building: false,
+    builtBy: "bay",
+    vs: "ground",
+    tier: 3,
   },
   bastion: {
     kind: "bastion",
@@ -336,6 +520,7 @@ export const DEFS: Record<Kind, Def> = {
     projectile: "shell",
     building: false,
     builtBy: "bay",
+    tier: 3,
   },
   wall: {
     kind: "wall",
@@ -453,6 +638,7 @@ export const DEFS: Record<Kind, Def> = {
     building: false,
     builtBy: "bay",
     vs: "ground",
+    tier: 1,
   },
   aegis: {
     kind: "aegis",
@@ -477,6 +663,7 @@ export const DEFS: Record<Kind, Def> = {
     building: false,
     builtBy: "bay",
     vs: "air",
+    tier: 2,
   },
   t3x: {
     kind: "t3x",
@@ -501,6 +688,7 @@ export const DEFS: Record<Kind, Def> = {
     building: false,
     builtBy: "bay",
     vs: "any",
+    tier: 4,
   },
   kestrel: {
     kind: "kestrel",
@@ -526,6 +714,7 @@ export const DEFS: Record<Kind, Def> = {
     builtBy: "strip",
     air: true,
     vs: "any",
+    tier: 1,
   },
   condor: {
     kind: "condor",
@@ -551,11 +740,155 @@ export const DEFS: Record<Kind, Def> = {
     builtBy: "strip",
     air: true,
     vs: "ground",
+    tier: 2,
+  },
+  ionwing: {
+    kind: "ionwing",
+    name: "Ionwing",
+    blurb: "Strike fighter. Faster than a Condor, meaner than a Kestrel.",
+    cost: 1600,
+    time: 15,
+    hp: 190,
+    speed: 150,
+    range: 160,
+    rof: 0.48,
+    dmg: 16,
+    armor: "light",
+    radius: 12,
+    fw: 0,
+    fh: 0,
+    vision: 340,
+    drain: 0,
+    power: 0,
+    cargo: 0,
+    projectile: "bolt",
+    building: false,
+    builtBy: "strip",
+    air: true,
+    vs: "any",
+    tier: 3,
+  },
+  spectre: {
+    kind: "spectre",
+    name: "Spectre",
+    blurb: "Gunship. The last thing a base hears.",
+    cost: 2200,
+    time: 20,
+    hp: 340,
+    speed: 78,
+    range: 170,
+    rof: 1.2,
+    dmg: 40,
+    armor: "light",
+    radius: 16,
+    fw: 0,
+    fh: 0,
+    vision: 300,
+    drain: 0,
+    power: 0,
+    cargo: 0,
+    projectile: "shell",
+    building: false,
+    builtBy: "strip",
+    air: true,
+    vs: "ground",
+    tier: 4,
   },
 };
 
 export const BUILD_MENU: Kind[] = ["relay", "refinery", "barracks", "bay", "strip", "turret", "sam", "cannon", "wall", "silo"];
-export const UNIT_MENU: Kind[] = ["rifle", "rocket", "harvester", "viper", "lancer", "aegis", "bastion", "t3x", "kestrel", "condor"];
+export const UNIT_MENU: Kind[] = [
+  "rifle",
+  "watch",
+  "patrol",
+  "grenadier",
+  "sergeant",
+  "specops",
+  "rocket",
+  "harvester",
+  "viper",
+  "lancer",
+  "reaver",
+  "howl",
+  "aegis",
+  "bastion",
+  "t3x",
+  "kestrel",
+  "condor",
+  "ionwing",
+  "spectre",
+];
+
+export type TechWing = "barracks" | "bay" | "strip" | "spire";
+export const TECH_WINGS: TechWing[] = ["barracks", "bay", "strip", "spire"];
+export const UPGRADE_COST = [0, 650, 1400, 2600];
+
+export function wingOf(kind: Kind): TechWing | null {
+  if (kind === "barracks" || kind === "bay" || kind === "strip" || kind === "spire") return kind;
+  const by = DEFS[kind].builtBy;
+  if (by === "barracks" || by === "bay" || by === "strip") return by;
+  return null;
+}
+
+export function nextUpgradeCost(tier: number): number | null {
+  if (tier >= 4) return null;
+  return UPGRADE_COST[tier] ?? null;
+}
+
+export function structureTitle(kind: Kind, tier: number): string {
+  const names: Partial<Record<Kind, string[]>> = {
+    barracks: ["Barracks", "Patrol Hall", "Sergeant Keep", "Specops Cradle"],
+    bay: ["Vehicle Bay", "Machine Works", "Siege Foundry", "T3X Forge"],
+    strip: ["Launch Spine", "Wing Deck", "Strike Spine", "Spectre Yard"],
+    spire: ["Command Spire", "Ion Command", "Shield Command", "DEFCON Spire"],
+  };
+  const row = names[kind];
+  if (!row) return DEFS[kind].name;
+  return row[Math.max(0, Math.min(3, tier - 1))] ?? DEFS[kind].name;
+}
+
+export const TIER_MAP: { wing: TechWing; title: string; rows: { tier: number; name: string; note: string }[] }[] = [
+  {
+    wing: "barracks",
+    title: "Infantry",
+    rows: [
+      { tier: 1, name: "Rifleman · Watch", note: "Open from the first barracks." },
+      { tier: 2, name: "Patrolman and dog · Grenadier · Rocket", note: "Upgrade the barracks once." },
+      { tier: 3, name: "Sergeant", note: "Ranked line. Third tier." },
+      { tier: 4, name: "Special Forces", note: "Last infantry tier." },
+    ],
+  },
+  {
+    wing: "bay",
+    title: "Tanks",
+    rows: [
+      { tier: 1, name: "Viper · Lancer", note: "Light and line tanks." },
+      { tier: 2, name: "Reaver · Aegis", note: "Machine tank and sky hull." },
+      { tier: 3, name: "Howl · Bastion", note: "Grenade tank and siege hull." },
+      { tier: 4, name: "T3X", note: "The marked hull." },
+    ],
+  },
+  {
+    wing: "strip",
+    title: "Aircraft",
+    rows: [
+      { tier: 1, name: "Kestrel", note: "Fighter." },
+      { tier: 2, name: "Condor", note: "Bomber." },
+      { tier: 3, name: "Ionwing", note: "Strike fighter." },
+      { tier: 4, name: "Spectre", note: "Gunship." },
+    ],
+  },
+  {
+    wing: "spire",
+    title: "DEFCON",
+    rows: [
+      { tier: 1, name: "Command", note: "The spire only." },
+      { tier: 2, name: "Ion strike", note: "A paid blast on a point you choose." },
+      { tier: 3, name: "Shield dome", note: "A buffer on nearby friendlies." },
+      { tier: 4, name: "DEFCON warhead", note: "One nuclear strike. Long cooldown." },
+    ],
+  },
+];
 
 export function engages(from: Kind, to: Kind): boolean {
   const a = DEFS[from];
@@ -583,6 +916,11 @@ export function scaledDamage(from: Kind, armor: Armor): number {
   if (from === "kestrel" && armor === "light") return d * 1.25;
   if ((from === "sam" || from === "aegis") && armor === "light") return d * 1.45;
   if (from === "t3x" && armor === "structure") return d * 1.2;
+  if ((from === "grenadier" || from === "howl") && armor !== "heavy") return d * 1.15;
+  if (from === "reaver" && armor === "light") return d * 1.3;
+  if (from === "specops") return d * 1.1;
+  if (from === "spectre" && armor === "structure") return d * 1.45;
+  if (from === "sergeant" && armor === "light") return d * 1.1;
   return d;
 }
 

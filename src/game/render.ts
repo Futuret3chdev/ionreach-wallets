@@ -139,7 +139,7 @@ export class Renderer {
     for (const e of drawList) {
       if (!cinematic && e.team === 1 && !DEFS[e.kind].building && !sim.isVisible(e)) continue;
       if (!cinematic && e.team === 1 && DEFS[e.kind].building && !sim.isVisible(e) && !sim.explored[this.ti(e)]) continue;
-      this.drawEnt(ctx, e, sim.time, sim.selected.includes(e.id));
+      this.drawEnt(ctx, e, sim.time, sim.selected.includes(e.id), this.wingTier(sim, e.kind, e.team));
     }
     if (!cinematic) {
       for (const m of sim.memory.values()) {
@@ -376,7 +376,12 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawEnt(ctx: CanvasRenderingContext2D, e: Ent, time: number, selected: boolean): void {
+  private wingTier(sim: Sim, kind: Kind, team: 0 | 1): number {
+    if (kind !== "spire" && kind !== "barracks" && kind !== "bay" && kind !== "strip") return 1;
+    return sim.tech[team][kind] ?? 1;
+  }
+
+  private drawEnt(ctx: CanvasRenderingContext2D, e: Ent, time: number, selected: boolean, tier = 1): void {
     const def = DEFS[e.kind];
     const team = e.team === 0 ? ION : EMBER;
     ctx.save();
@@ -385,7 +390,7 @@ export class Renderer {
     ctx.beginPath();
     ctx.ellipse(def.air ? 12 : 3, def.air ? 18 : 6, def.building ? def.fw * 12 : def.air ? def.radius * 0.7 : def.radius, def.building ? def.fh * 8 : def.radius * 0.55, 0, 0, Math.PI * 2);
     ctx.fill();
-    if (def.building) this.drawBuilding(ctx, e, time, team);
+    if (def.building) this.drawBuilding(ctx, e, time, team, tier);
     else this.drawUnit(ctx, e, time, team);
     if (e.flash > 0) {
       ctx.fillStyle = "rgba(255,255,255,0.35)";
@@ -411,7 +416,7 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawBuilding(ctx: CanvasRenderingContext2D, e: Ent, time: number, team: string): void {
+  private drawBuilding(ctx: CanvasRenderingContext2D, e: Ent, time: number, team: string, tier = 1): void {
     const def = DEFS[e.kind];
     const w = def.fw * TILE - 8;
     const h = def.fh * TILE - 8;
@@ -514,6 +519,22 @@ export class Renderer {
       ctx.arc(0, 0, 6, 0, Math.PI * 2);
       ctx.stroke();
     }
+    if (tier > 1) {
+      ctx.save();
+      ctx.strokeStyle = team;
+      for (let i = 1; i < tier; i++) {
+        ctx.globalAlpha = 0.28 + i * 0.16;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-w / 2 - 3 - i * 3, -h / 2 - 3 - i * 3, w + 6 + i * 6, h + 6 + i * 6);
+      }
+      ctx.restore();
+      ctx.fillStyle = team;
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath();
+      ctx.arc(0, 0, 3 + tier, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
     if (e.buildLeft > 0 && e.buildTotal > 0) {
       const p = 1 - e.buildLeft / e.buildTotal;
       ctx.strokeStyle = "rgba(231,238,242,0.8)";
@@ -531,7 +552,7 @@ export class Renderer {
   private drawUnit(ctx: CanvasRenderingContext2D, e: Ent, _time: number, team: string): void {
     if (DEFS[e.kind].air) {
       ctx.rotate(e.facing);
-      const bomb = e.kind === "condor";
+      const bomb = e.kind === "condor" || e.kind === "spectre";
       ctx.fillStyle = "#102028";
       ctx.beginPath();
       ctx.moveTo(bomb ? 20 : 16, 0);
@@ -550,24 +571,34 @@ export class Renderer {
       }
       return;
     }
-    if (e.kind === "rifle" || e.kind === "rocket") {
+    if (e.kind === "rifle" || e.kind === "rocket" || e.kind === "watch" || e.kind === "patrol" || e.kind === "grenadier" || e.kind === "sergeant" || e.kind === "specops") {
       ctx.rotate(e.facing);
-      ctx.fillStyle = "#2c241e";
+      ctx.fillStyle = e.kind === "specops" ? "#14181c" : "#2c241e";
       ctx.beginPath();
       ctx.ellipse(0, 0, 7, 5, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#e6d2c2";
+      ctx.fillStyle = e.kind === "specops" ? "#9eb0bc" : "#e6d2c2";
       ctx.beginPath();
       ctx.arc(4, 0, 3.2, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = e.kind === "rocket" ? "#c9a27a" : "#9aa7b2";
-      ctx.lineWidth = e.kind === "rocket" ? 3 : 1.6;
+      if (e.kind === "patrol") {
+        ctx.fillStyle = "#c4a574";
+        ctx.beginPath();
+        ctx.ellipse(-8, 4, 4.2, 2.4, 0.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1a120c";
+        ctx.beginPath();
+        ctx.arc(-10.5, 3.2, 1.1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.strokeStyle = e.kind === "rocket" || e.kind === "grenadier" ? "#c9a27a" : e.kind === "sergeant" ? "#e8c56b" : "#9aa7b2";
+      ctx.lineWidth = e.kind === "rocket" || e.kind === "grenadier" ? 3 : 1.6;
       ctx.beginPath();
       ctx.moveTo(2, 0);
-      ctx.lineTo(e.kind === "rocket" ? 14 : 12, 0);
+      ctx.lineTo(e.kind === "watch" ? 9 : e.kind === "rocket" ? 14 : 12, 0);
       ctx.stroke();
       ctx.fillStyle = team;
-      ctx.fillRect(-6, -4, 3, 8);
+      ctx.fillRect(-6, -4, e.kind === "sergeant" || e.kind === "specops" ? 4 : 3, 8);
       if (e.flash > 0) {
         ctx.fillStyle = "#fff";
         ctx.beginPath();
@@ -578,9 +609,9 @@ export class Renderer {
     }
     ctx.rotate(e.facing);
     const ace = e.kind === "t3x";
-    const heavy = e.kind === "bastion" || ace;
+    const heavy = e.kind === "bastion" || ace || e.kind === "howl";
     const hv = e.kind === "harvester";
-    const len = hv ? 26 : ace ? 52 : heavy ? 44 : e.kind === "viper" ? 36 : 40;
+    const len = hv ? 26 : ace ? 52 : e.kind === "reaver" ? 40 : heavy ? 44 : e.kind === "viper" ? 36 : 40;
     const wid = hv ? 16 : ace ? 26 : heavy ? 24 : e.kind === "viper" ? 20 : 22;
     ctx.fillStyle = "#141920";
     roundRect(ctx, -len / 2, -wid / 2, len, wid, 3);

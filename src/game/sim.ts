@@ -10,8 +10,12 @@ import {
   onlineLine,
   scaledDamage,
   engages,
+  wingOf,
+  nextUpgradeCost,
+  structureTitle,
   type Kind,
   type Team,
+  type TechWing,
 } from "./content";
 import { buildMap, type BuiltMap } from "./map";
 
@@ -46,6 +50,7 @@ export interface Ent {
   alive: boolean;
   flash: number;
   repath: number;
+  shield: number;
 }
 
 export interface Shot {
@@ -128,10 +133,14 @@ export interface HudSnap {
     buildLeft: number;
     buildTotal: number;
     queue: { kind: Kind; left: number; total: number }[];
+    shield: number;
   }[];
   unlocked: Record<Kind, boolean>;
   afford: Record<Kind, boolean>;
   making: Partial<Record<Kind, number>>;
+  tech: Record<TechWing, number>;
+  ability: { strike: number; dome: number; nuke: number };
+  abilityArm: "strike" | "nuke" | null;
 }
 
 interface HeapN {
@@ -218,6 +227,12 @@ export class Sim {
   aiCool = 48;
   contact = false;
   wasLow = false;
+  tech: [Record<TechWing, number>, Record<TechWing, number>] = [
+    { barracks: 1, bay: 1, strip: 1, spire: 1 },
+    { barracks: 1, bay: 1, strip: 1, spire: 1 },
+  ];
+  ability = { strike: 0, dome: 0, nuke: 0 };
+  abilityArm: "strike" | "nuke" | null = null;
   private by = new Map<number, Ent>();
 
   constructor() {
@@ -311,6 +326,7 @@ export class Sim {
       alive: true,
       flash: 0,
       repath: 0,
+      shield: 0,
     };
     this.by.set(e.id, e);
     return e;
@@ -352,6 +368,9 @@ export class Sim {
     if (this.tracks.length > 500) this.tracks.splice(0, this.tracks.length - 400);
     this.tracks = this.tracks.filter((t) => t.life > 0);
     this.shake = Math.max(0, this.shake - dt * 1.4);
+    this.ability.strike = Math.max(0, this.ability.strike - dt);
+    this.ability.dome = Math.max(0, this.ability.dome - dt);
+    this.ability.nuke = Math.max(0, this.ability.nuke - dt);
 
     this.processPaths();
     for (const e of this.ents) {
@@ -647,7 +666,7 @@ export class Sim {
       vy: Math.sin(ang) * speed,
       dmg: scaledDamage(e.kind, target.kind === e.kind ? DEFS[target.kind].armor : DEFS[target.kind].armor),
       team: e.team,
-      splash: def.projectile === "rocket" ? 28 : e.kind === "bastion" || e.kind === "condor" ? 22 : e.kind === "cannon" ? 14 : 0,
+      splash: def.projectile === "rocket" ? 28 : e.kind === "grenadier" || e.kind === "howl" ? 26 : e.kind === "spectre" ? 36 : e.kind === "bastion" || e.kind === "condor" ? 22 : e.kind === "cannon" ? 14 : 0,
       life: 1.8,
       kind: def.projectile,
       targetId: target.id,
@@ -728,6 +747,15 @@ export class Sim {
 
   private hurt(e: Ent, dmg: number): void {
     if (!e.alive || dmg <= 0 || this.winner !== null) return;
+    if (e.shield > 0) {
+      const soak = Math.min(e.shield, dmg);
+      e.shield -= soak;
+      dmg -= soak;
+    }
+    if (dmg <= 0) {
+      e.flash = 0.08;
+      return;
+    }
     e.hp -= dmg;
     e.flash = 0.1;
     if (e.hp <= 0) this.kill(e, true);
@@ -846,17 +874,32 @@ export class Sim {
     if (done("turret") && count("cannon") < 1 && this.credits[team] > 1100) this.tryPlace(team, "cannon");
     if (done("barracks") && count("wall") < 3) this.tryPlace(team, "wall");
     if (done("bay") && !has("strip") && this.credits[team] > 2200) this.tryPlace(team, "strip");
-    if (done("barracks") && this.credits[team] > 520 && count("rifle") + count("rocket") < 12) {
-      this.enqueue(team, count("rocket") < count("rifle") / 2 ? "rocket" : "rifle");
+    if (done("barracks") && this.tech[team].barracks < 4 && this.credits[team] > 1600 && this.time > 70 + this.tech[team].barracks * 40) {
+      this.upgradeWing(team, "barracks");
     }
-    const hulls = count("viper") + count("lancer") + count("aegis") + count("bastion");
+    if (done("bay") && this.tech[team].bay < 4 && this.credits[team] > 1800 && this.time > 110 + this.tech[team].bay * 45) {
+      this.upgradeWing(team, "bay");
+    }
+    if (done("strip") && this.tech[team].strip < 4 && this.credits[team] > 2000 && this.time > 150 + this.tech[team].strip * 50) {
+      this.upgradeWing(team, "strip");
+    }
+    if (done("barracks") && this.credits[team] > 520) {
+      const boots = ["rifle", "watch", "patrol", "grenadier", "rocket", "sergeant", "specops"] as const;
+      const have = boots.reduce((n, k) => n + count(k), 0);
+      if (have < 12) {
+        const pick = (["specops", "sergeant", "grenadier", "patrol", "rocket", "watch", "rifle"] as const).find((k) => this.unlocked(team, k));
+        if (pick) this.enqueue(team, pick);
+      }
+    }
+    const hulls = count("viper") + count("lancer") + count("reaver") + count("howl") + count("aegis") + count("bastion") + count("t3x");
     if (done("bay") && this.credits[team] > 700 && hulls < 7) {
-      const next = count("aegis") < 1 ? "aegis" : count("bastion") < 1 && this.credits[team] > 1400 ? "bastion" : count("viper") < 2 ? "viper" : "lancer";
-      this.enqueue(team, next);
+      const pick = (["t3x", "bastion", "howl", "aegis", "reaver", "lancer", "viper"] as const).find((k) => this.unlocked(team, k));
+      if (pick) this.enqueue(team, pick);
     }
-    const wings = count("kestrel") + count("condor");
+    const wings = count("kestrel") + count("condor") + count("ionwing") + count("spectre");
     if (done("strip") && this.credits[team] > 1000 && wings < 3) {
-      this.enqueue(team, count("condor") < 1 ? "condor" : "kestrel");
+      const pick = (["spectre", "ionwing", "condor", "kestrel"] as const).find((k) => this.unlocked(team, k));
+      if (pick) this.enqueue(team, pick);
     }
     if (this.time > 75 && this.aiCool <= 0) {
       const army = this.ents.filter(
@@ -921,7 +964,12 @@ export class Sim {
     const def = DEFS[kind];
     if (!def.builtBy) return false;
     if (!this.unlocked(team, kind)) {
-      if (team === 0) this.say("That wing is dark.");
+      if (team === 0) {
+        const wing = wingOf(kind);
+        const need = def.tier ?? 1;
+        const hasWing = !!def.builtBy && this.ents.some((e) => e.alive && e.team === team && e.kind === def.builtBy && e.buildLeft <= 0);
+        this.say(hasWing && wing && this.tech[team][wing] < need ? "Upgrade that structure's tier first." : "That wing is dark.");
+      }
       this.events.push({ t: "bad" });
       return false;
     }
@@ -955,7 +1003,121 @@ export class Sim {
     if (!has("spire")) return false;
     if (def.prereq && !has(def.prereq)) return false;
     if (def.builtBy && !has(def.builtBy)) return false;
+    const wing = wingOf(kind);
+    const need = def.tier ?? 1;
+    if (wing && kind !== wing && this.tech[team][wing] < need) return false;
     return true;
+  }
+
+  upgradeWing(team: Team, wing: TechWing): boolean {
+    const ready = this.ents.some((e) => e.alive && e.team === team && e.kind === wing && e.buildLeft <= 0);
+    if (!ready) {
+      if (team === 0) this.say("Raise that structure first.");
+      return false;
+    }
+    const cur = this.tech[team][wing];
+    const cost = nextUpgradeCost(cur);
+    if (cost === null) {
+      if (team === 0) this.say("That wing is already at the last tier.");
+      return false;
+    }
+    if (this.credits[team] < cost) {
+      if (team === 0) {
+        this.say("Not enough ionite.");
+        this.events.push({ t: "bad" });
+      }
+      return false;
+    }
+    this.credits[team] -= cost;
+    this.tech[team] = { ...this.tech[team], [wing]: cur + 1 };
+    if (team === 0) this.say(structureTitle(wing, cur + 1) + " is online.");
+    this.uiDirty = true;
+    this.events.push({ t: "build" });
+    return true;
+  }
+
+  armAbility(which: "strike" | "nuke" | "dome"): void {
+    const tech = this.tech[0].spire;
+    if (which === "strike" && tech < 2) {
+      this.say("Upgrade the spire to tier 2.");
+      this.events.push({ t: "bad" });
+      return;
+    }
+    if (which === "dome" && tech < 3) {
+      this.say("Upgrade the spire to tier 3.");
+      this.events.push({ t: "bad" });
+      return;
+    }
+    if (which === "nuke" && tech < 4) {
+      this.say("DEFCON needs spire tier 4.");
+      this.events.push({ t: "bad" });
+      return;
+    }
+    if (which === "dome") {
+      this.castDome(0);
+      return;
+    }
+    this.abilityArm = this.abilityArm === which ? null : which;
+    this.placeKind = null;
+    this.attackArm = false;
+    this.uiDirty = true;
+    if (this.abilityArm) this.say(which === "nuke" ? "DEFCON armed. Choose the ground." : "Ion strike armed. Choose the ground.");
+  }
+
+  dropAbility(x: number, y: number): void {
+    const which = this.abilityArm;
+    this.abilityArm = null;
+    if (which === "strike") this.blast(0, x, y, "strike");
+    if (which === "nuke") this.blast(0, x, y, "nuke");
+    this.uiDirty = true;
+  }
+
+  private blast(team: Team, x: number, y: number, which: "strike" | "nuke"): void {
+    const cost = which === "nuke" ? 1400 : 400;
+    const cd = which === "nuke" ? 110 : 48;
+    if (this.ability[which] > 0) {
+      if (team === 0) this.say("Still cooling down.");
+      return;
+    }
+    if (this.credits[team] < cost) {
+      if (team === 0) this.say("Not enough ionite.");
+      return;
+    }
+    this.credits[team] -= cost;
+    this.ability[which] = cd;
+    const rad = which === "nuke" ? 170 : 78;
+    const dmg = which === "nuke" ? 240 : 72;
+    for (const e of this.ents) {
+      if (!e.alive || e.team === team) continue;
+      const d = Math.hypot(e.x - x, e.y - y);
+      if (d < rad) this.hurt(e, dmg * (1 - d / (rad + 10)));
+    }
+    this.burst(x, y, which === "nuke" ? 1.7 : 0.9);
+    this.shake = Math.min(1.4, this.shake + (which === "nuke" ? 1.1 : 0.45));
+    if (team === 0) this.say(which === "nuke" ? "DEFCON warhead away." : "Ion strike.");
+    this.events.push({ t: "boom", big: which === "nuke" });
+    this.uiDirty = true;
+  }
+
+  private castDome(team: Team): void {
+    if (this.ability.dome > 0) {
+      if (team === 0) this.say("Dome is cooling down.");
+      return;
+    }
+    if (this.credits[team] < 500) {
+      if (team === 0) this.say("Not enough ionite.");
+      return;
+    }
+    const spire = this.ents.find((e) => e.alive && e.team === team && e.kind === "spire");
+    if (!spire) return;
+    this.credits[team] -= 500;
+    this.ability.dome = 55;
+    for (const e of this.ents) {
+      if (!e.alive || e.team !== team) continue;
+      if (Math.hypot(e.x - spire.x, e.y - spire.y) < 250) e.shield += 90;
+    }
+    if (team === 0) this.say("Shield dome is up.");
+    this.uiDirty = true;
   }
 
   armPlace(kind: Kind): void {
@@ -1192,6 +1354,7 @@ export class Sim {
         buildLeft: e.buildLeft,
         buildTotal: e.buildTotal,
         queue: e.queue.map((q) => ({ ...q })),
+        shield: e.shield,
       }));
     return {
       credits: Math.floor(this.credits[0]),
@@ -1210,6 +1373,9 @@ export class Sim {
       unlocked,
       afford,
       making,
+      tech: { ...this.tech[0] },
+      ability: { ...this.ability },
+      abilityArm: this.abilityArm,
     };
   }
 
@@ -1226,7 +1392,7 @@ export class Sim {
   }
 
   importState(blob: { time: number; credits: number[]; nextId: number; winner: Team | null; ion: number[]; ents: Ent[] }): void {
-    this.ents = blob.ents.map((e) => ({ ...e, path: e.path ? e.path.map((pt) => ({ ...pt })) : null, queue: e.queue.map((q) => ({ ...q })) }));
+    this.ents = blob.ents.map((e) => ({ ...e, shield: e.shield ?? 0, path: e.path ? e.path.map((pt) => ({ ...pt })) : null, queue: e.queue.map((q) => ({ ...q })) }));
     this.by.clear();
     for (const e of this.ents) this.by.set(e.id, e);
     this.credits = [blob.credits[0] ?? 0, blob.credits[1] ?? 0];

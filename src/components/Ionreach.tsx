@@ -22,7 +22,7 @@ import {
   Zap,
   Plane,
 } from "lucide-react";
-import { BUILD_MENU, DEFS, UNIT_MENU, WORLD_H, WORLD_W, type Kind } from "@/game/content";
+import { BUILD_MENU, DEFS, TIER_MAP, UNIT_MENU, WORLD_H, WORLD_W, nextUpgradeCost, structureTitle, type Kind, type TechWing } from "@/game/content";
 import { Sfx } from "@/game/audio";
 import { Renderer, type Cam } from "@/game/render";
 import { Sim, type HudSnap } from "@/game/sim";
@@ -53,6 +53,15 @@ const ICONS: Record<Kind, typeof Hexagon> = {
   t3x: Star,
   kestrel: Plane,
   condor: Plane,
+  watch: Crosshair,
+  patrol: Users,
+  grenadier: Rocket,
+  sergeant: Shield,
+  specops: Star,
+  reaver: Box,
+  howl: Rocket,
+  ionwing: Plane,
+  spectre: Plane,
 };
 
 function clock(t: number): string {
@@ -112,6 +121,7 @@ export function Ionreach() {
   const lineRef = useRef("");
   const [best, setBest] = useState<number | null>(null);
   const [settings, setSettings] = useState(false);
+  const [tiersOpen, setTiersOpen] = useState(false);
   const [musicOn, setMusicOn] = useState(false);
   const musicOnRef = useRef(false);
   const phaseRef = useRef<Phase>("title");
@@ -305,6 +315,11 @@ export function Ionreach() {
       if (touch && dragged) return;
       if (simNow.placeKind && !dragged) {
         simNow.placeAt(world.x, world.y);
+        return;
+      }
+      if (simNow.abilityArm && !dragged) {
+        simNow.dropAbility(world.x, world.y);
+        setHud(simNow.snapshot());
         return;
       }
       if (simNow.attackArm && !dragged) {
@@ -579,6 +594,39 @@ export function Ionreach() {
         </div>
       )}
 
+      {tiersOpen && hud && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-bg/75 p-4">
+          <div className="max-h-[90%] w-full max-w-3xl overflow-y-auto border border-line bg-surface p-5">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-display text-3xl">Tier map</h2>
+              <button type="button" onClick={() => setTiersOpen(false)} className="min-h-11 border border-line px-3 font-display">
+                Close
+              </button>
+            </div>
+            <p className="mt-1 text-sm text-muted">Select a structure and upgrade it. The building changes, and the next units unlock. Nothing above tier 1 is free.</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {TIER_MAP.map((col) => (
+                <section key={col.wing} className="border border-line p-3">
+                  <p className="font-display text-xs tracking-[0.18em] text-muted">{col.title}</p>
+                  <p className="font-display text-lg">{structureTitle(col.wing, hud.tech[col.wing])}</p>
+                  <ol className="mt-2 space-y-2">
+                    {col.rows.map((row) => {
+                      const open = hud.tech[col.wing] >= row.tier;
+                      return (
+                        <li key={row.tier} className={open ? "border border-ion/40 px-2 py-1" : "border border-line px-2 py-1 opacity-50"}>
+                          <p className="font-display text-sm">Tier {row.tier} · {row.name}</p>
+                          <p className="text-xs text-muted">{open ? "Unlocked. " : "Locked. "}{row.note}</p>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </section>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {battle && (
         <>
           <canvas ref={canvasRef} className="absolute inset-0 h-full w-full touch-none" />
@@ -596,6 +644,8 @@ export function Ionreach() {
                 {hud?.message && <p className="border border-line bg-bg/80 px-3 py-2 font-display text-lg text-fg">{hud.message}</p>}
                 {hud?.low && <p className="mt-2 bg-ember px-3 py-1 font-display text-bg">Grid starved</p>}
                 {hud?.attackArm && <p className="mt-2 bg-ion px-3 py-1 font-display text-bg">Attack-move — choose ground</p>}
+                {hud?.abilityArm === "strike" && <p className="mt-2 bg-gold px-3 py-1 font-display text-bg">Ion strike — choose the ground</p>}
+                {hud?.abilityArm === "nuke" && <p className="mt-2 bg-ember px-3 py-1 font-display text-bg">DEFCON — choose the ground</p>}
                 {hud?.paused && <p className="mt-2 bg-gold px-3 py-1 font-display text-bg">Paused</p>}
               </div>
               <div className="pointer-events-auto flex flex-col items-end gap-2">
@@ -607,6 +657,20 @@ export function Ionreach() {
                   <Zap className="mr-1 inline size-3" />
                   {hud?.prod ?? 0}/{hud?.use ?? 0}
                 </p>
+                <button type="button" onClick={() => setTiersOpen(true)} className="mt-2 min-h-9 w-full border border-line px-2 font-display text-xs">
+                  Tier map
+                </button>
+                <div className="mt-2 grid gap-1 text-left">
+                  <button type="button" onClick={() => { simRef.current?.armAbility("strike"); setHud(simRef.current?.snapshot() ?? null); }} className="min-h-8 border border-line px-2 font-display text-[11px]">
+                    Ion strike {hud && hud.ability.strike > 0 ? `${Math.ceil(hud.ability.strike)}s` : "400"}
+                  </button>
+                  <button type="button" onClick={() => { simRef.current?.armAbility("dome"); setHud(simRef.current?.snapshot() ?? null); }} className="min-h-8 border border-line px-2 font-display text-[11px]">
+                    Shield dome {hud && hud.ability.dome > 0 ? `${Math.ceil(hud.ability.dome)}s` : "500"}
+                  </button>
+                  <button type="button" onClick={() => { simRef.current?.armAbility("nuke"); setHud(simRef.current?.snapshot() ?? null); }} className="min-h-8 border border-line px-2 font-display text-[11px] text-ember">
+                    DEFCON {hud && hud.ability.nuke > 0 ? `${Math.ceil(hud.ability.nuke)}s` : "1400"}
+                  </button>
+                </div>
               </div>
               </div>
             </header>
@@ -639,7 +703,7 @@ export function Ionreach() {
                 onPointerDown={onMini}
                 className="pointer-events-auto h-24 w-32 border border-line bg-bg md:h-32 md:w-44"
               />
-              <SelectionCard hud={hud} onStop={() => simRef.current?.stop()} onRepair={() => simRef.current?.toggleRepair()} onSell={() => simRef.current?.sell()} onAmove={() => {
+              <SelectionCard hud={hud} onStop={() => simRef.current?.stop()} onRepair={() => simRef.current?.toggleRepair()} onSell={() => simRef.current?.sell()} onUpgrade={(wing) => simRef.current?.upgradeWing(0, wing)} onAmove={() => {
                 const sim = simRef.current;
                 if (!sim) return;
                 sim.attackArm = !sim.attackArm;
@@ -781,7 +845,9 @@ function BuildButton({ kind, hud, onClick, compact }: { kind: Kind; hud: HudSnap
       {!compact && (
         <span className="min-w-0 flex-1">
           <span className="block truncate font-display text-base leading-tight">{def.name}</span>
-          <span className="block text-xs text-gold">{def.cost}</span>
+          <span className="block text-xs text-gold">
+            T{def.tier ?? 1} · {def.cost}
+          </span>
         </span>
       )}
       {pct !== undefined && <span className="absolute bottom-0 left-0 h-0.5 bg-ion" style={{ width: `${Math.round(pct * 100)}%` }} />}
@@ -795,27 +861,34 @@ function SelectionCard({
   onRepair,
   onSell,
   onAmove,
+  onUpgrade,
 }: {
   hud: HudSnap | null;
   onStop: () => void;
   onRepair: () => void;
   onSell: () => void;
   onAmove: () => void;
+  onUpgrade: (wing: TechWing) => void;
 }) {
   const sel = hud?.selected ?? [];
   const first = sel[0];
+  const wing = first && (first.kind === "barracks" || first.kind === "bay" || first.kind === "strip" || first.kind === "spire") ? first.kind : null;
+  const tier = wing && hud ? hud.tech[wing] : 1;
+  const up = wing ? nextUpgradeCost(tier) : null;
+  const title = first && sel.length === 1 ? (wing ? structureTitle(first.kind, tier) : DEFS[first.kind].name) : "";
   return (
     <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-3 border border-line bg-surface/90 px-3 py-2">
       {first ? (
         <>
           <div className="min-w-0">
-            <p className="truncate font-display text-lg leading-tight">{sel.length > 1 ? `${sel.length} selected` : DEFS[first.kind].name}</p>
-            <p className="truncate text-xs text-muted">{sel.length > 1 ? "Move them as a line." : DEFS[first.kind].blurb}</p>
+            <p className="truncate font-display text-lg leading-tight">{sel.length > 1 ? `${sel.length} selected` : title}</p>
+            <p className="truncate text-xs text-muted">{sel.length > 1 ? "Move them as a line." : wing ? `Tier ${tier} of 4. ${DEFS[first.kind].blurb}` : DEFS[first.kind].blurb}</p>
             {sel.length === 1 && (
               <div className="mt-1 h-1.5 w-28 bg-bg">
                 <div className="h-full bg-ion" style={{ width: `${Math.max(0, (first.hp / first.maxHp) * 100)}%` }} />
               </div>
             )}
+            {first.shield > 0 && <p className="text-xs text-ion">Shield {Math.floor(first.shield)}</p>}
             {first.building && first.queue.length > 0 && (
               <p className="text-xs text-gold">
                 {DEFS[first.queue[0].kind].name} {Math.max(0, Math.ceil(first.queue[0].left))}s
@@ -824,6 +897,11 @@ function SelectionCard({
             )}
           </div>
           <div className="ml-auto flex gap-2">
+            {wing && up !== null && first.team === 0 && (
+              <button type="button" onClick={() => onUpgrade(wing)} className="min-h-11 border border-gold px-2 font-display text-gold">
+                Upgrade {up}
+              </button>
+            )}
             {!first.building && (
               <button type="button" onClick={onStop} className="inline-flex min-h-11 min-w-11 items-center justify-center border border-line" aria-label="Stop">
                 <Square className="size-4" />
