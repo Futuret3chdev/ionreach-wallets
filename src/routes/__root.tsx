@@ -11,7 +11,7 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
-      { name: "description", content: "IONREACH: Glass Horizon — an original real-time strategy. Harvest ionite, raise a base, break the enemy spire." },
+      { name: "description", content: "IONREACH version 3. Pick a country, watch the chapter, then fight across rivers, trees, and mountains." },
       { name: "theme-color", content: "#07090e" },
     ],
     links: [

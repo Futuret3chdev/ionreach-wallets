@@ -1,9 +1,12 @@
+import { chapterById, type Chapter } from "./campaign";
 import { COLS, ROWS, TILE, WORLD_H, WORLD_W } from "./content";
 
 export interface BuiltMap {
   tiles: Uint8Array;
   ion: Uint16Array;
   style: Float32Array;
+  flora: Uint8Array;
+  chapterId: string;
   player: { x: number; y: number };
   enemy: { x: number; y: number };
   mid: { x: number; y: number };
@@ -63,15 +66,16 @@ function clearPad(tiles: Uint8Array, ion: Uint16Array, c0: number, r0: number, c
   }
 }
 
-export function buildMap(): BuiltMap {
+export function buildMap(chapter: Chapter = chapterById("usa")): BuiltMap {
   const tiles = new Uint8Array(COLS * ROWS);
   const ion = new Uint16Array(COLS * ROWS);
   const style = new Float32Array(COLS * ROWS);
+  const flora = new Uint8Array(COLS * ROWS);
 
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const i = idx(c, r);
-      style[i] = smooth(c * 0.17, r * 0.17) * 0.65 + smooth(c * 0.05 + 4, r * 0.05) * 0.35;
+      style[i] = smooth(c * 0.17 + chapter.salt, r * 0.17) * 0.65 + smooth(c * 0.05 + chapter.salt, r * 0.05) * 0.35;
       if (c === 0 || r === 0 || c === COLS - 1 || r === ROWS - 1) tiles[i] = 1;
       else tiles[i] = 0;
     }
@@ -94,6 +98,15 @@ export function buildMap(): BuiltMap {
   disk(tiles, ion, 58, 30, 2.1, true);
   disk(tiles, ion, 18, 18, 1.6, true);
 
+  const extras = Math.round(2 + chapter.peaks * 4);
+  for (let n = 0; n < extras; n++) {
+    const cx = 16 + ((n * 11 + Math.floor(chapter.salt * 5)) % 46);
+    const cy = 12 + ((n * 7 + Math.floor(chapter.salt * 3)) % 28);
+    disk(tiles, ion, cx, cy, 1.3 + (n % 3) * 0.35, true);
+  }
+
+  carveWater(tiles, chapter);
+
   clearPad(tiles, ion, 6, 32, 20, 48);
   clearPad(tiles, ion, 56, 4, 72, 18);
 
@@ -103,11 +116,58 @@ export function buildMap(): BuiltMap {
   disk(tiles, ion, 54, 20, 2.1, false, 2600);
   disk(tiles, ion, 61, 22, 1.8, false, 2400);
 
+  for (let r = 2; r < ROWS - 2; r++) {
+    for (let c = 2; c < COLS - 2; c++) {
+      const i = idx(c, r);
+      if (tiles[i] !== 0) continue;
+      if (c >= 6 && c <= 20 && r >= 32 && r <= 48) continue;
+      if (c >= 56 && c <= 72 && r >= 4 && r <= 18) continue;
+      const n = smooth(c * 0.23 + chapter.salt, r * 0.23);
+      if (n > 1 - chapter.forest * 0.55) flora[i] = n > 0.82 ? 2 : 1;
+    }
+  }
+
   const player = { x: 11.5 * TILE, y: 39.5 * TILE };
   const enemy = { x: 64.5 * TILE, y: 10.5 * TILE };
   const mid = { x: 40.5 * TILE, y: 27.5 * TILE };
 
-  return { tiles, ion, style, player, enemy, mid };
+  return { tiles, ion, style, flora, chapterId: chapter.id, player, enemy, mid };
+}
+
+function carveWater(tiles: Uint8Array, chapter: Chapter): void {
+  const wet = (c: number, r: number) => {
+    if (c < 2 || r < 2 || c >= COLS - 2 || r >= ROWS - 2) return;
+    const i = idx(c, r);
+    if (tiles[i] === 2) return;
+    tiles[i] = 3;
+  };
+  if (chapter.water === "coast") {
+    const depth = 2 + Math.round(chapter.waterAmt * 3);
+    for (let r = 1; r < depth; r++) {
+      for (let c = 2; c < COLS - 2; c++) wet(c, r);
+    }
+    return;
+  }
+  if (chapter.water === "lakes") {
+    const lakes = 2 + Math.round(chapter.waterAmt * 3);
+    for (let n = 0; n < lakes; n++) {
+      const cx = 14 + ((n * 13 + Math.floor(chapter.salt * 4)) % 48);
+      const cy = 16 + ((n * 9) % 18);
+      const rad = 1.6 + chapter.waterAmt;
+      for (let r = Math.floor(cy - rad); r <= cy + rad; r++) {
+        for (let c = Math.floor(cx - rad); c <= cx + rad; c++) {
+          if ((c - cx) ** 2 + (r - cy) ** 2 <= rad * rad) wet(c, r);
+        }
+      }
+    }
+    return;
+  }
+  for (let c = 4; c < COLS - 4; c++) {
+    if (c % 15 < 3) continue;
+    const y = 22 + Math.sin(c * 0.2 + chapter.salt) * (2 + chapter.waterAmt * 2);
+    const width = 0.7 + chapter.waterAmt * 1.15;
+    for (let r = Math.floor(y - width); r <= Math.ceil(y + width); r++) wet(c, r);
+  }
 }
 
 export function tileCenter(c: number, r: number): { x: number; y: number } {

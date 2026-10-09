@@ -27,6 +27,9 @@ import { Sfx } from "@/game/audio";
 import { Renderer, type Cam } from "@/game/render";
 import { Sim, type HudSnap } from "@/game/sim";
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { Briefing } from "@/components/Briefing";
+import { CHAPTERS, chapterById, type Chapter } from "@/game/campaign";
+import { allBadges, noteCombat, type Badge } from "@/game/achievements";
 import { grantMarks, readProfile, writeSave, type SaveSlot } from "@/lib/meta/profile";
 
 type Phase = "title" | "battle" | "win" | "lose";
@@ -121,6 +124,13 @@ export function Ionreach() {
   const lineRef = useRef("");
   const [best, setBest] = useState<number | null>(null);
   const [settings, setSettings] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [brief, setBrief] = useState<Chapter | null>(null);
+  const [records, setRecords] = useState(false);
+  const [earned, setEarned] = useState<Badge[]>([]);
+  const [toasts, setToasts] = useState<Badge[]>([]);
+  const chapterRef = useRef("usa");
+  const earnedRef = useRef<Badge[]>([]);
   const [tiersOpen, setTiersOpen] = useState(false);
   const [abilitiesOpen, setAbilitiesOpen] = useState(false);
   const [musicOn, setMusicOn] = useState(false);
@@ -181,7 +191,8 @@ export function Ionreach() {
         cam.x = pos.x;
         cam.y = pos.y;
         cam.z = 0.78 + Math.sin(u * Math.PI) * 0.28;
-        const line = u < 0.28 ? "Callsign T3X. Helion forward base." : u < 0.62 ? "Ionite veins. The only thing this rock owes us." : "Vesper already dug in past the ridge.";
+        const ch = chapterById(chapterRef.current);
+        const line = u < 0.28 ? `${ch.country}. ${ch.theater}.` : u < 0.62 ? ch.beats[1] : ch.beats[2];
         if (line !== lineRef.current) {
           lineRef.current = line;
           setIntroLine(line);
@@ -232,12 +243,20 @@ export function Ionreach() {
       const evs = sim.events.splice(0, sim.events.length);
       for (const ev of evs) {
         if (ev.t === "shot") sfx.current.shot(ev.kind ?? "bolt");
-        else if (ev.t === "boom") sfx.current.boom(!!ev.big);
+        else if (ev.t === "boom" || ev.t === "win" || ev.t === "lose") {
+          if (ev.t === "boom") sfx.current.boom(!!ev.big);
+          else if (ev.t === "win") sfx.current.win();
+          else sfx.current.lose();
+          const fresh = noteCombat(chapterRef.current, sim.downed, ev.t === "boom" ? null : ev.t);
+          if (fresh.length) {
+            earnedRef.current = [...earnedRef.current, ...fresh];
+            setToasts(fresh);
+            setEarned(earnedRef.current);
+          }
+        }
         else if (ev.t === "build") sfx.current.build();
         else if (ev.t === "bad") sfx.current.bad();
         else if (ev.t === "ui") sfx.current.click();
-        else if (ev.t === "win") sfx.current.win();
-        else if (ev.t === "lose") sfx.current.lose();
       }
       if (sim.winner !== null && phaseRef.current === "battle") {
         const next = sim.winner === 0 ? "win" : "lose";
@@ -488,10 +507,16 @@ export function Ionreach() {
     sim.recomputeBlocks();
   }
 
-  function deploy() {
+  function deploy(id = chapterRef.current) {
     sfx.current.unlock();
     if (musicOnRef.current) sfx.current.startScore();
-    const sim = new Sim();
+    chapterRef.current = id;
+    earnedRef.current = [];
+    setEarned([]);
+    setToasts([]);
+    setBrief(null);
+    setPicking(false);
+    const sim = new Sim(id);
     applyLoadout(sim);
     simRef.current = sim;
     camRef.current = { x: sim.pois.player.x + 160, y: sim.pois.player.y - 160, z: 0.92 };
@@ -576,14 +601,14 @@ export function Ionreach() {
       {!battle && <div className="absolute inset-0 bg-bg/45" />}
       {!battle && (
         <div className="relative z-10 flex h-full flex-col justify-end px-5 py-6 md:px-12 md:py-10">
-          <p className="font-display text-sm tracking-[0.28em] text-ion">HELION DIRECTORATE · T3X</p>
+          <p className="font-display text-sm tracking-[0.28em] text-ion">VERSION 3 · HELION DIRECTORATE · T3X</p>
           <h1 className="font-display text-6xl leading-none font-bold text-fg md:text-8xl">IONREACH</h1>
           <p className="mt-2 max-w-xl text-base text-muted md:text-lg">
-            Callsign T3X holds the glass. Harvest the ionite, raise tanks, walls, and aircraft, and crack the Vesper spire.
+            Ten countries. A 45-second chapter film, then the fight. Men, tanks, and aircraft on a map with rivers, trees, and mountains.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <button type="button" onClick={deploy} className="min-h-11 bg-ion px-5 font-display text-lg font-semibold text-bg">
-              Deploy
+            <button type="button" onClick={() => setPicking(true)} className="min-h-11 bg-ion px-5 font-display text-lg font-semibold text-bg">
+              Choose a chapter
             </button>
             <button type="button" onClick={() => setSettings(true)} className="min-h-11 border border-line bg-surface/80 px-5 font-display text-lg text-fg">Settings</button>
             <button type="button" onClick={() => openCinema(0)} className="inline-flex min-h-11 items-center gap-2 border border-line bg-surface/80 px-5 font-display text-lg text-fg">
@@ -592,6 +617,9 @@ export function Ionreach() {
             </button>
             <button type="button" onClick={() => setManual(true)} className="min-h-11 px-4 font-display text-lg text-muted">
               Field manual
+            </button>
+            <button type="button" onClick={() => setRecords(true)} className="min-h-11 px-4 font-display text-lg text-muted">
+              Achievements
             </button>
           </div>
           <p className="mt-6 max-w-lg text-xs text-muted">
@@ -609,6 +637,55 @@ export function Ionreach() {
             <button type="button" onClick={closeCinema} className="min-h-11 bg-ion px-4 font-display text-bg">
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {picking && (
+        <div className="absolute inset-0 z-40 overflow-y-auto bg-bg/92 p-4 md:p-8">
+          <div className="mx-auto max-w-5xl">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-display text-xs tracking-[0.22em] text-ion">VERSION 3</p>
+                <h2 className="font-display text-4xl">Choose a chapter</h2>
+              </div>
+              <button type="button" onClick={() => setPicking(false)} className="min-h-11 border border-line px-3 font-display">
+                Close
+              </button>
+            </div>
+            <p className="mt-2 max-w-2xl text-sm text-muted">Each country is its own story. The film runs 45 seconds, then you drop in. Skip it if you already know the ground.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {CHAPTERS.map((chapter) => (
+                <button key={chapter.id} type="button" onClick={() => { setPicking(false); setBrief(chapter); }} className="border border-line bg-surface p-4 text-left">
+                  <p className="font-display text-xs tracking-[0.16em] text-ion">{chapter.country}</p>
+                  <p className="font-display text-2xl">{chapter.theater}</p>
+                  <p className="mt-1 text-sm text-muted">{chapter.line}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {brief && <Briefing chapter={brief} onBack={() => { setBrief(null); setPicking(true); }} onDone={() => deploy(brief.id)} />}
+
+      {records && (
+        <div className="absolute inset-0 z-40 flex items-end justify-center bg-bg/75 p-4 md:items-center">
+          <div className="max-h-[90%] w-full max-w-lg overflow-y-auto border border-line bg-surface p-5">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-display text-3xl">Achievements</h2>
+              <button type="button" onClick={() => setRecords(false)} className="min-h-11 border border-line px-3 font-display">
+                Close
+              </button>
+            </div>
+            <ul className="mt-3 space-y-2">
+              {allBadges().map(({ badge, owned }) => (
+                <li key={badge.id} className={owned ? "border border-gold/50 px-3 py-2" : "border border-line px-3 py-2 opacity-50"}>
+                  <p className="font-display">{badge.name}</p>
+                  <p className="text-xs text-muted">{owned ? "Earned. " : "Locked. "}{badge.detail}</p>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       )}
@@ -676,6 +753,7 @@ export function Ionreach() {
                 <div>
                   <p className="font-display text-[10px] leading-none tracking-[0.2em] text-muted">SUPPORTED BY</p>
                   <p className="mt-1 font-display text-sm leading-none font-bold tracking-[0.14em] text-fg">FUTURET3CH</p>
+                  <p className="mt-1 font-display text-xs tracking-[0.14em] text-ion">{chapterById(chapterRef.current).country}</p>
                   <p className="mt-1 font-display text-xl leading-none">{clock(hud?.time ?? 0)}</p>
                 </div>
               </div>
@@ -686,6 +764,7 @@ export function Ionreach() {
                 {hud?.abilityArm === "strike" && <p className="mt-2 bg-gold px-3 py-1 font-display text-bg">Ion strike — choose the ground</p>}
                 {hud?.abilityArm === "nuke" && <p className="mt-2 bg-ember px-3 py-1 font-display text-bg">DEFCON — choose the ground</p>}
                 {hud?.paused && <p className="mt-2 bg-gold px-3 py-1 font-display text-bg">Paused</p>}
+                {toasts[0] && <p className="mt-2 border border-gold bg-bg/90 px-3 py-1 font-display text-gold">Achievement · {toasts[0].name}</p>}
               </div>
               <div className="pointer-events-auto flex flex-col items-end gap-2">
                 <button type="button" onClick={() => setSettings(true)} className="min-h-11 border border-line bg-surface/90 px-3 font-display text-sm">Settings</button>
@@ -803,10 +882,20 @@ export function Ionreach() {
           <div className="w-full max-w-md border border-line bg-surface p-6">
             <p className="font-display text-sm tracking-[0.2em] text-ion">{phase === "win" ? "HORIZON HELD" : "HORIZON LOST"}</p>
             <h2 className="font-display text-4xl font-semibold">{phase === "win" ? "Vesper spire is dust." : "The spire fell."}</h2>
-            <p className="mt-2 text-muted">{phase === "win" ? `Held in ${clock(hud?.time ?? 0)}.` : "Rebuild the grid and try the ridge again."}</p>
+            <p className="mt-2 text-muted">{phase === "win" ? `Held in ${clock(hud?.time ?? 0)}. ${chapterById(chapterRef.current).theater} is yours.` : "Rebuild the grid and try the ridge again."}</p>
             {best && phase === "win" && <p className="mt-1 text-sm text-gold">Best {clock(best)}</p>}
+            {earned.length > 0 && (
+              <ul className="mt-3 space-y-1">
+                {earned.map((badge) => (
+                  <li key={badge.id} className="border border-gold/50 px-2 py-1">
+                    <p className="font-display text-gold">{badge.name}</p>
+                    <p className="text-xs text-muted">{badge.detail}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
             <div className="mt-5 flex gap-3">
-              <button type="button" onClick={deploy} className="min-h-11 bg-ion px-4 font-display text-bg">
+              <button type="button" onClick={() => deploy()} className="min-h-11 bg-ion px-4 font-display text-bg">
                 Redeploy
               </button>
               <button
@@ -842,7 +931,7 @@ export function Ionreach() {
         onLoad={(slot) => {
           const blob = slot.blob as { time: number; credits: number[]; nextId: number; winner: 0 | 1 | null; ion: number[]; ents: [] };
           if (!simRef.current) {
-            const sim = new Sim();
+            const sim = new Sim(chapterRef.current);
             simRef.current = sim;
             phaseRef.current = "battle";
             setPhase("battle");
