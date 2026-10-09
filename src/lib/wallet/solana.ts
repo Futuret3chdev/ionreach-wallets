@@ -17,6 +17,46 @@ function named(provider: SolProvider, fallback: string): string {
   return fallback;
 }
 
+export type MobileWalletApp = {
+  id: "phantom" | "solflare" | "backpack";
+  name: string;
+};
+
+/** Opens this page inside the wallet's own browser, where the app can connect. */
+export function mobileWalletLink(id: MobileWalletApp["id"], page: string): string {
+  const url = encodeURIComponent(page);
+  let origin = page;
+  try {
+    origin = new URL(page).origin;
+  } catch {
+    origin = page;
+  }
+  const ref = encodeURIComponent(origin);
+  if (id === "phantom") return `https://phantom.app/ul/browse/${url}?ref=${ref}`;
+  if (id === "solflare") return `https://solflare.com/ul/v1/browse/${url}?ref=${ref}`;
+  return `https://backpack.app/ul/v1/browse/${url}?ref=${ref}`;
+}
+
+export const MOBILE_WALLETS: MobileWalletApp[] = [
+  { id: "phantom", name: "Phantom" },
+  { id: "solflare", name: "Solflare" },
+  { id: "backpack", name: "Backpack" },
+];
+
+export function insideWalletApp(): MobileWalletApp["id"] | null {
+  if (typeof window === "undefined") return null;
+  const w = window as Window & {
+    solana?: SolProvider;
+    phantom?: { solana?: SolProvider };
+    solflare?: SolProvider;
+    backpack?: SolProvider;
+  };
+  if (w.phantom?.solana?.isPhantom || w.solana?.isPhantom) return "phantom";
+  if (w.solflare?.isSolflare) return "solflare";
+  if (w.backpack?.isBackpack) return "backpack";
+  return null;
+}
+
 export function listSolanaWallets(): SolanaWallet[] {
   const w = window as Window & {
     solana?: SolProvider;
