@@ -87,6 +87,23 @@ function makePal(team: 0 | 1, teamColor: string, hp: number): Pal {
   return { roof: rgb(roof), south: rgb(south), east: rgb(east), accent: teamColor, accentRgb, metal };
 }
 
+const GOLD: RGB = [232, 197, 107];
+
+function promote(base: Pal, tier: number, team: 0 | 1): Pal {
+  const step = Math.max(0, Math.min(3, tier - 1));
+  if (step === 0) return base;
+  const bright: RGB = team === 0 ? [186, 214, 216] : [196, 132, 96];
+  let metal = mix(base.metal, bright, 0.18 + step * 0.12);
+  if (tier >= 4) metal = mix(metal, team === 0 ? [226, 236, 232] : [92, 36, 30], 0.4);
+  const roof = mix(metal, tier >= 3 ? GOLD : [240, 244, 246], tier >= 4 ? 0.46 : 0.32);
+  const south = mix(metal, [255, 255, 255], 0.06 + step * 0.03);
+  const east = mix(metal, [6, 4, 6], 0.34);
+  let accent = base.accentRgb;
+  if (tier >= 3) accent = mix(accent, GOLD, team === 0 ? 0.28 : 0.18);
+  if (tier >= 4) accent = mix(accent, [255, 248, 220], 0.22);
+  return { roof: rgb(roof), south: rgb(south), east: rgb(east), accent: rgb(accent), accentRgb: accent, metal };
+}
+
 interface Draw {
   ctx: CanvasRenderingContext2D;
   pal: Pal;
@@ -443,45 +460,225 @@ function pad(d: Draw, w: number, dep: number): void {
   band(d, 0, dep * 0.06, w + 12, dep / 2 + 6, dep / 2 + 9, 5.2, d.pal.accent);
 }
 
-function tiers(d: Draw, w: number, dep: number, z: number, tier: number, time: number): void {
-  if (tier >= 2) dish(d, w * 0.28, -dep * 0.22, z + 6, time);
-  if (tier >= 3) {
-    beacon(d, -w * 0.32, -dep * 0.18, z, time + 1.2);
-    beacon(d, w * 0.32, dep * 0.05, z, time + 2.4);
-  }
-  if (tier >= 4) {
-    box(d, 0, -dep * 0.05, 6, 6, z, z + 18);
-    beacon(d, 0, -dep * 0.05, z + 18, time);
+function rankMarks(d: Draw, cx: number, cy: number, dep: number, z: number, tier: number): void {
+  const y = cy + dep / 2;
+  for (let i = 0; i < tier; i++) {
+    const x = cx - (tier - 1) * 3.2 + i * 6.4;
+    poly(
+      d.ctx,
+      [project(x - 2, y, z + 4), project(x + 2, y, z + 4), project(x + 2, y, z), project(x - 2, y, z)],
+      tier >= 3 ? rgb(GOLD) : d.pal.accent,
+    );
   }
 }
 
 function spire(d: Draw, w: number, dep: number, R: number, time: number, tier: number): number {
-  const base = 5 + 20 * R;
-  box(d, 0, 4, w - 10, dep - 12, 5, base);
+  const t = Math.max(1, Math.min(4, tier));
+  const base = 5 + (t >= 3 ? 26 : 20) * R;
+  box(d, 0, 4, w - (t >= 3 ? 4 : 10), dep - (t >= 3 ? 4 : 12), 5, base);
   roofGrid(d, 0, 4, w - 14, dep - 16, base);
-  windows(d, 0, 4, dep - 12, 5 + 6 * R, base - 3, [-w * 0.28, -w * 0.14, w * 0.14, w * 0.28], d.pal.accentRgb ? 1 : 1);
+  windows(d, 0, 4, dep - 12, 5 + 6 * R, base - 3, [-w * 0.28, -w * 0.12, w * 0.12, w * 0.28], 1);
+  const pylon = (t === 1 ? 30 : t === 2 ? 40 : t === 3 ? 34 : 48) * R;
   const corners: Pt[] = [
     [-w * 0.36, -dep * 0.28],
     [w * 0.36, -dep * 0.28],
-    [-w * 0.36, dep * 0.22],
-    [w * 0.36, dep * 0.22],
+    [-w * 0.36, dep * 0.2],
+    [w * 0.36, dep * 0.2],
   ];
-  for (const [x, y] of corners) box(d, x, y, 12, 12, 5, 5 + 30 * R);
-  const tower = base + 46 * R;
-  box(d, 0, -2, 36, 36, base, tower);
-  roofGrid(d, 0, -2, 30, 30, tower);
-  windows(d, 0, -2, 36, base + 8 * R, tower - 6, [-8, 8], 1);
-  silo(d, 0, -2, 14, tower, tower + 10 * R);
-  const mast = tower + 10 * R + 22 * R;
-  box(d, 0, -2, 3, 3, tower + 8 * R, mast);
-  glow(d, 0, -2, (base + tower) / 2, 16, 0.35 + 0.15 * Math.sin(time * 3));
-  beacon(d, 0, -2, mast, time);
-  if (tier >= 2) dish(d, 16, 8, tower, time);
-  if (tier >= 4) {
-    box(d, 0, -2, 22, 22, tower - 4, tower + 6);
-    glow(d, 0, -2, tower + 4, 22, 0.45);
+  for (const [x, y] of corners) box(d, x, y, t >= 3 ? 14 : 11, t >= 3 ? 14 : 11, 5, 5 + pylon);
+  const towerW = t === 4 ? 26 : t === 3 ? 46 : t === 2 ? 30 : 36;
+  const tower = base + (t === 1 ? 46 : t === 2 ? 64 : t === 3 ? 50 : 88) * R;
+  box(d, 0, t === 4 ? -6 : -2, towerW, towerW, base, tower);
+  roofGrid(d, 0, t === 4 ? -6 : -2, towerW - 6, towerW - 6, tower);
+  windows(d, 0, t === 4 ? -6 : -2, towerW, base + 10 * R, tower - 8, t >= 2 ? [-10, 0, 10] : [-8, 8], 1);
+  if (t >= 2) silo(d, 0, -2, t === 4 ? 9 : 15, base + (tower - base) * 0.25, base + (tower - base) * 0.62);
+  if (t === 3) {
+    silo(d, 0, 2, Math.min(w, dep) * 0.38, base - 4, base + 10 * R);
+    glow(d, 0, 2, base + 8 * R, 22, 0.4 + 0.12 * Math.sin(time * 2));
+    band(d, 0, 4, w - 16, -dep * 0.08, dep * 0.02, base + 1, rgb(GOLD));
   }
-  return tower;
+  if (t === 4) {
+    silo(d, w * 0.3, dep * 0.08, 9, 5, base + 22 * R);
+    band(d, 0, -6, towerW - 2, -4, 2, tower - 6, rgb(GOLD));
+    band(d, 0, -6, towerW - 2, -4, 2, base + 8, d.pal.accent);
+    glow(d, w * 0.3, dep * 0.08, base + 20 * R, 12, 0.55);
+  }
+  silo(d, 0, t === 4 ? -6 : -2, t === 4 ? 8 : 14, tower, tower + (t >= 2 ? 12 : 8) * R);
+  const mast = tower + (t === 1 ? 32 : t === 2 ? 40 : t === 3 ? 28 : 52) * R;
+  box(d, 0, t === 4 ? -6 : -2, t === 4 ? 4 : 3, t === 4 ? 4 : 3, tower + 6 * R, mast);
+  glow(d, 0, -2, (base + tower) / 2, t >= 3 ? 20 : 16, 0.32 + 0.16 * Math.sin(time * 3));
+  beacon(d, 0, t === 4 ? -6 : -2, mast, time);
+  if (t >= 2) dish(d, towerW * 0.35, 6, tower, time + t);
+  rankMarks(d, 0, 4, dep - 12, 8, t);
+  return mast;
+}
+
+function barracks(d: Draw, w: number, dep: number, R: number, time: number, tier: number): void {
+  const t = Math.max(1, Math.min(4, tier));
+  if (t === 1) {
+    const body = 5 + 24 * R;
+    box(d, 0, 1, w - 8, dep - 6, 5, body);
+    roofGrid(d, 0, 1, w - 12, dep - 10, body);
+    band(d, 0, 1, w - 12, -dep * 0.28, -dep * 0.18, body + 0.8, d.pal.accent);
+    door(d, -w * 0.12, 1, dep - 6, 5, 5 + 14 * R, 7);
+    windows(d, 0, 1, dep - 6, 5 + 12 * R, body - 4, [-w * 0.32, -w * 0.18, w * 0.08, w * 0.24, w * 0.38], 1);
+    box(d, w * 0.36, -dep * 0.22, 8, 8, body, body + 16 * R);
+    flag(d, w * 0.36, -dep * 0.22, body + 16 * R, time);
+    return;
+  }
+  if (t === 2) {
+    const low = 5 + 18 * R;
+    const up = low + 16 * R;
+    box(d, 0, 2, w - 6, dep - 4, 5, low);
+    box(d, -w * 0.06, -2, w * 0.62, dep * 0.62, low, up);
+    box(d, w * 0.32, dep * 0.16, 22, 16, 5, 5 + 12 * R);
+    roofGrid(d, -w * 0.06, -2, w * 0.56, dep * 0.55, up);
+    windows(d, 0, 2, dep - 4, 8, low - 3, [-w * 0.28, -w * 0.1, w * 0.08], 1);
+    windows(d, -w * 0.06, -2, dep * 0.62, low + 4, up - 3, [-10, 0, 10], 1);
+    door(d, -w * 0.16, 2, dep - 4, 5, 5 + 12 * R, 6);
+    band(d, -w * 0.06, -2, w * 0.58, -4, 2, up + 0.6, rgb(GOLD));
+    box(d, w * 0.28, -dep * 0.22, 6, 6, up, up + 20 * R);
+    flag(d, w * 0.28, -dep * 0.22, up + 20 * R, time);
+    rankMarks(d, 0, 2, dep - 4, 8, t);
+    return;
+  }
+  if (t === 3) {
+    const wall = 5 + 30 * R;
+    box(d, 0, 0, w - 4, dep - 2, 5, wall);
+    roofGrid(d, 0, 0, w - 10, dep - 8, wall);
+    const keeps: Pt[] = [
+      [-w * 0.38, -dep * 0.28],
+      [w * 0.38, -dep * 0.28],
+      [-w * 0.38, dep * 0.22],
+      [w * 0.38, dep * 0.22],
+    ];
+    for (const [x, y] of keeps) {
+      box(d, x, y, 16, 16, 5, wall + 20 * R);
+      box(d, x, y, 10, 10, wall + 20 * R, wall + 28 * R);
+    }
+    for (const x of [-w * 0.16, 0, w * 0.16]) box(d, x, -dep * 0.18, 8, 8, wall, wall + 7 * R);
+    door(d, 0, 0, dep - 2, 5, 5 + 16 * R, 8);
+    band(d, 0, 0, w - 8, -3, 3, wall + 0.8, rgb(GOLD));
+    windows(d, 0, 0, dep - 2, wall - 12, wall - 4, [-w * 0.2, w * 0.2], 0.7);
+    beacon(d, -w * 0.38, -dep * 0.28, wall + 28 * R, time);
+    rankMarks(d, 0, 0, dep - 2, 10, t);
+    return;
+  }
+  const saved = d.pal;
+  d.pal = {
+    ...saved,
+    roof: rgb(mix(saved.metal, [16, 20, 24], 0.55)),
+    south: rgb(mix(saved.metal, [12, 14, 18], 0.5)),
+    east: rgb(mix(saved.metal, [4, 4, 6], 0.7)),
+  };
+  const plinth = 5 + 12 * R;
+  const spine = plinth + 34 * R;
+  box(d, 0, 2, w - 4, dep - 2, 5, plinth);
+  box(d, 0, -2, w * 0.42, dep * 0.7, plinth, spine);
+  roofGrid(d, 0, -2, w * 0.36, dep * 0.6, spine);
+  d.pal = saved;
+  windows(d, 0, -2, dep * 0.7, plinth + 6, spine - 6, [-8, 0, 8], 1);
+  for (const x of [-8, 0, 8]) {
+    box(d, x, -dep * 0.08, 2.4, 2.4, spine, spine + 26 * R);
+    beacon(d, x, -dep * 0.08, spine + 26 * R, time + x);
+  }
+  band(d, 0, 2, w - 8, dep * 0.2, dep * 0.32, plinth + 0.8, rgb(GOLD));
+  glow(d, 0, -2, (plinth + spine) / 2, 14, 0.4);
+  rankMarks(d, 0, 2, dep - 2, 8, t);
+}
+
+function flag(d: Draw, x: number, y: number, z: number, time: number): void {
+  const tip = project(x, y, z);
+  const fly = Math.sin(time * 3) * 4;
+  d.ctx.fillStyle = d.pal.accent;
+  d.ctx.beginPath();
+  d.ctx.moveTo(tip[0], tip[1]);
+  d.ctx.lineTo(tip[0] + 14, tip[1] + 3 + fly);
+  d.ctx.lineTo(tip[0], tip[1] + 8);
+  d.ctx.closePath();
+  d.ctx.fill();
+}
+
+function bay(d: Draw, w: number, dep: number, R: number, time: number, tier: number): void {
+  const t = Math.max(1, Math.min(4, tier));
+  const body = 5 + (t === 1 ? 26 : t === 2 ? 24 : t === 3 ? 32 : 22) * R;
+  box(d, 0, t >= 3 ? 0 : -2, w - (t >= 3 ? 4 : 8), dep - (t >= 3 ? 4 : 8), 5, body);
+  roofGrid(d, 0, t >= 3 ? 0 : -2, w - 12, dep - 12, body);
+  door(d, 0, t >= 3 ? 0 : -2, dep - (t >= 3 ? 4 : 8), 5, 5 + (t >= 3 ? 22 : 18) * R, w * (t >= 3 ? 0.34 : 0.28));
+  if (t === 1) {
+    box(d, -w * 0.3, -dep * 0.22, 22, 18, body, body + 14 * R);
+    windows(d, -w * 0.3, -dep * 0.22, 18, body + 3, body + 11 * R, [-4, 4], 1);
+  }
+  if (t === 2) {
+    box(d, -w * 0.28, -dep * 0.16, w * 0.34, dep * 0.55, body, body + 18 * R);
+    silo(d, w * 0.28, -dep * 0.12, 8, body, body + 24 * R);
+    windows(d, -w * 0.28, -dep * 0.16, dep * 0.55, body + 4, body + 14 * R, [-6, 6], 1);
+    if (R > 0.6) plume(d, w * 0.28, -dep * 0.12, body + 24 * R, time);
+    band(d, 0, -2, w - 16, -3, 3, body + 0.7, rgb(GOLD));
+  }
+  if (t === 3) {
+    box(d, 0, -dep * 0.12, w - 10, dep * 0.42, body, body + 10 * R);
+    box(d, -w * 0.34, -dep * 0.2, 8, dep * 0.7, body, body + 28 * R);
+    box(d, w * 0.16, -dep * 0.28, 20, 8, body + 10 * R, body + 14 * R);
+    band(d, 0, 0, w - 8, -4, 2, body + 0.8, rgb(GOLD));
+    windows(d, 0, 0, dep - 4, body - 12, body - 4, [-w * 0.2, 0, w * 0.2], 0.6);
+    glow(d, -w * 0.34, -dep * 0.05, body + 26 * R, 8, 0.35);
+  }
+  if (t === 4) {
+    const forge = body + 40 * R;
+    box(d, 0, -4, 34, 34, body, forge);
+    silo(d, -w * 0.28, 2, 10, 5, body + 16 * R);
+    silo(d, w * 0.28, 2, 10, 5, body + 16 * R);
+    band(d, 0, -4, 30, -4, 4, forge - 4, rgb(GOLD));
+    windows(d, 0, -4, 34, body + 8, forge - 10, [-8, 8], 1);
+    glow(d, 0, -4, (body + forge) / 2, 18, 0.5 + 0.15 * Math.sin(time * 4));
+    beacon(d, 0, -4, forge, time);
+    if (R > 0.7) plume(d, -w * 0.28, 2, body + 16 * R, time);
+  }
+  box(d, -w * 0.18, -dep * 0.05, 4, dep * 0.62, body, body + (t >= 3 ? 8 : 6));
+  box(d, w * 0.18, -dep * 0.05, 4, dep * 0.62, body, body + (t >= 3 ? 8 : 6));
+  const slide = ((time * (8 + t * 2)) % (w * 0.5)) - w * 0.25;
+  glow(d, slide, 0, body + 7, 7, 0.3);
+  if (t > 1) rankMarks(d, 0, 0, dep - 6, 9, t);
+}
+
+function strip(d: Draw, w: number, dep: number, R: number, time: number, tier: number): void {
+  const t = Math.max(1, Math.min(4, tier));
+  const deck = 5 + (t >= 3 ? 12 : 8) * R;
+  box(d, 0, 2, w - (t >= 4 ? 2 : 4), dep - 2, 5, deck);
+  band(d, 0, 2, w - 10, -3, 3, deck + 0.7, t >= 3 ? rgb(GOLD) : "#d7e2ea");
+  const lights = Math.max(3, Math.round(w / (t >= 2 ? 14 : 18)));
+  for (let i = 0; i < lights; i++) {
+    const x = -w / 2 + 10 + ((w - 20) * i) / Math.max(1, lights - 1);
+    const on = Math.floor(time * (4 + t) + i) % 2 === 0;
+    if (on) glow(d, x, 2, deck + 2, t >= 3 ? 5 : 4, 0.4);
+  }
+  const towerH = deck + (t === 1 ? 36 : t === 2 ? 48 : t === 3 ? 58 : 46) * R;
+  box(d, -w * 0.34, -dep * 0.08, t >= 2 ? 22 : 18, t >= 2 ? 26 : 22, deck, towerH);
+  windows(d, -w * 0.34, -dep * 0.08, t >= 2 ? 26 : 22, towerH - 16 * R, towerH - 4, [-4, 4], 1);
+  beacon(d, -w * 0.34, -dep * 0.08, towerH, time);
+  if (t === 2) {
+    box(d, w * 0.22, -dep * 0.05, 20, 18, deck, deck + 22 * R);
+    windows(d, w * 0.22, -dep * 0.05, 18, deck + 6, deck + 16 * R, [-4, 4], 1);
+    dish(d, w * 0.22, -dep * 0.05, deck + 22 * R, time);
+  }
+  if (t === 3) {
+    box(d, w * 0.18, 2, w * 0.28, dep * 0.55, deck, deck + 16 * R);
+    dish(d, -w * 0.34, -dep * 0.2, towerH + 4, time);
+    box(d, 0, -dep * 0.22, 10, 10, deck, deck + 20 * R);
+    glow(d, 0, -dep * 0.22, deck + 18 * R, 8, 0.4);
+  }
+  if (t === 4) {
+    const twin = deck + 62 * R;
+    box(d, w * 0.3, -dep * 0.05, 20, 24, deck, twin);
+    windows(d, w * 0.3, -dep * 0.05, 24, twin - 18, twin - 5, [-4, 4], 1);
+    beacon(d, w * 0.3, -dep * 0.05, twin, time + 1.4);
+    box(d, 0, -2, 5, 5, deck, twin + 18 * R);
+    beacon(d, 0, -2, twin + 18 * R, time + 0.6);
+    band(d, 0, 2, w - 8, dep * 0.15, dep * 0.28, deck + 1, d.pal.accent);
+    glow(d, 0, -2, twin, 14, 0.45);
+  }
+  if (t > 1) rankMarks(d, w * 0.05, 2, dep - 2, deck + 2, t);
 }
 
 function relay(d: Draw, w: number, dep: number, R: number, time: number): void {
@@ -518,40 +715,6 @@ function refinery(d: Draw, w: number, dep: number, R: number, time: number): voi
   if (R > 0.7) plume(d, w * 0.22, -dep * 0.16, body + 26 * R, time);
 }
 
-function barracks(d: Draw, w: number, dep: number, R: number, time: number, tier: number): void {
-  const body = 5 + 24 * R;
-  box(d, 0, 1, w - 8, dep - 6, 5, body);
-  roofGrid(d, 0, 1, w - 12, dep - 10, body);
-  band(d, 0, 1, w - 12, -dep * 0.28, -dep * 0.18, body + 0.8, d.pal.accent);
-  door(d, -w * 0.12, 1, dep - 6, 5, 5 + 14 * R, 7);
-  windows(d, 0, 1, dep - 6, 5 + 12 * R, body - 4, [-w * 0.32, -w * 0.18, w * 0.08, w * 0.24, w * 0.38], 1);
-  box(d, w * 0.36, -dep * 0.22, 8, 8, body, body + 16 * R);
-  const tip = project(w * 0.36, -dep * 0.22, body + 16 * R);
-  const fly = Math.sin(time * 3) * 4;
-  d.ctx.fillStyle = d.pal.accent;
-  d.ctx.beginPath();
-  d.ctx.moveTo(tip[0], tip[1]);
-  d.ctx.lineTo(tip[0] + 12, tip[1] + 3 + fly);
-  d.ctx.lineTo(tip[0], tip[1] + 7);
-  d.ctx.closePath();
-  d.ctx.fill();
-  tiers(d, w, dep, body, tier, time);
-}
-
-function bay(d: Draw, w: number, dep: number, R: number, time: number, tier: number): void {
-  const body = 5 + 26 * R;
-  box(d, 0, -2, w - 8, dep - 8, 5, body);
-  roofGrid(d, 0, -2, w - 12, dep - 12, body);
-  door(d, 0, -2, dep - 8, 5, 5 + 18 * R, w * 0.28);
-  box(d, -w * 0.3, -dep * 0.22, 22, 18, body, body + 14 * R);
-  windows(d, -w * 0.3, -dep * 0.22, 18, body + 3, body + 11 * R, [-4, 4], 1);
-  box(d, -w * 0.18, -dep * 0.05, 4, dep * 0.7, body, body + 6);
-  box(d, w * 0.18, -dep * 0.05, 4, dep * 0.7, body, body + 6);
-  const slide = ((time * 10) % (w * 0.5)) - w * 0.25;
-  glow(d, slide, -2, body + 7, 7, 0.35);
-  tiers(d, w, dep, body, tier, time);
-}
-
 function turret(d: Draw, spec: StructureSpec, R: number): void {
   const body = 5 + 12 * R;
   silo(d, 0, 2, Math.min(spec.w, spec.d) * 0.34, 5, body);
@@ -585,23 +748,6 @@ function wall(d: Draw, w: number, R: number): void {
   glow(d, 0, 0, body + 2, 6, 0.22);
 }
 
-function strip(d: Draw, w: number, dep: number, R: number, time: number, tier: number): void {
-  const deck = 5 + 8 * R;
-  box(d, 0, 2, w - 4, dep - 4, 5, deck);
-  band(d, 0, 2, w - 10, -3, 3, deck + 0.7, "#d7e2ea");
-  const lights = Math.max(3, Math.round(w / 18));
-  for (let i = 0; i < lights; i++) {
-    const x = -w / 2 + 10 + ((w - 20) * i) / (lights - 1);
-    const on = Math.floor(time * 6 + i) % 2 === 0;
-    if (on) glow(d, x, 2, deck + 2, 4, 0.45);
-  }
-  const tower = deck + 36 * R;
-  box(d, -w * 0.34, -dep * 0.1, 18, 22, deck, tower);
-  windows(d, -w * 0.34, -dep * 0.1, 22, tower - 14 * R, tower - 4, [-4, 4], 1);
-  beacon(d, -w * 0.34, -dep * 0.1, tower, time);
-  tiers(d, w, dep, deck, Math.min(tier, 2), time);
-}
-
 function siloYard(d: Draw, w: number, dep: number, R: number, time: number): void {
   const base = 5 + 8 * R;
   box(d, 0, 2, w - 6, dep - 6, 5, base);
@@ -628,9 +774,10 @@ export function drawStructure(
 ): number {
   const R = spec.progress <= 0 ? 0.04 : spec.progress;
   const pal = makePal(team, teamColor, spec.hpRatio);
+  const advanced = kind === "spire" || kind === "barracks" || kind === "bay" || kind === "strip";
   const d: Draw = {
     ctx,
-    pal,
+    pal: advanced && spec.tier > 1 ? promote(pal, spec.tier, team) : pal,
     crown: 0,
     note: (y) => {
       if (y < d.crown) d.crown = y;
