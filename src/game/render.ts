@@ -1,4 +1,5 @@
 import { COLS, DEFS, ROWS, TILE, WORLD_H, WORLD_W, type Kind } from "./content";
+import { drawStructure } from "./structures";
 import type { Ent, Sim } from "./sim";
 
 export interface Cam {
@@ -135,7 +136,14 @@ export class Renderer {
     this.drawCrystals(ctx, sim);
     this.drawTracks(ctx, sim);
     const drawList = sim.ents.filter((e) => e.alive);
-    drawList.sort((a, b) => a.y - b.y);
+    drawList.sort((a, b) => {
+      const aa = DEFS[a.kind].air ? 1 : 0;
+      const ba = DEFS[b.kind].air ? 1 : 0;
+      if (aa !== ba) return aa - ba;
+      const da = a.y + (DEFS[a.kind].building ? (DEFS[a.kind].fh * TILE) / 2 : 0);
+      const db = b.y + (DEFS[b.kind].building ? (DEFS[b.kind].fh * TILE) / 2 : 0);
+      return da - db;
+    });
     for (const e of drawList) {
       if (!cinematic && e.team === 1 && !DEFS[e.kind].building && !sim.isVisible(e)) continue;
       if (!cinematic && e.team === 1 && DEFS[e.kind].building && !sim.isVisible(e) && !sim.explored[this.ti(e)]) continue;
@@ -367,7 +375,7 @@ export class Renderer {
       facing: -Math.PI / 2,
       aim: -Math.PI / 2,
       flash: 0,
-      buildLeft: 1,
+      buildLeft: 0,
       buildTotal: 1,
       cargo: 0,
       alive: true,
@@ -386,13 +394,17 @@ export class Renderer {
     const team = e.team === 0 ? ION : EMBER;
     ctx.save();
     ctx.translate(e.x, e.y);
-    ctx.fillStyle = "rgba(0,0,0,0.28)";
-    ctx.beginPath();
-    ctx.ellipse(def.air ? 12 : 3, def.air ? 18 : 6, def.building ? def.fw * 12 : def.air ? def.radius * 0.7 : def.radius, def.building ? def.fh * 8 : def.radius * 0.55, 0, 0, Math.PI * 2);
-    ctx.fill();
-    if (def.building) this.drawBuilding(ctx, e, time, team, tier);
-    else this.drawUnit(ctx, e, time, team);
-    if (e.flash > 0) {
+    let crown = -def.radius;
+    if (def.building) {
+      crown = this.drawBuilding(ctx, e, time, team, tier);
+    } else {
+      ctx.fillStyle = "rgba(0,0,0,0.28)";
+      ctx.beginPath();
+      ctx.ellipse(def.air ? 12 : 3, def.air ? 18 : 6, def.air ? def.radius * 0.7 : def.radius, def.radius * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+      this.drawUnit(ctx, e, time, team);
+    }
+    if (e.flash > 0 && !def.building) {
       ctx.fillStyle = "rgba(255,255,255,0.35)";
       ctx.beginPath();
       ctx.arc(0, 0, def.radius + 4, 0, Math.PI * 2);
@@ -402,151 +414,34 @@ export class Renderer {
       ctx.strokeStyle = team;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.ellipse(0, 4, (def.building ? def.fw * TILE : def.radius * 2) * 0.48, 8, 0, 0, Math.PI * 2);
+      if (def.building) ctx.ellipse(0, def.fh * TILE * 0.22, def.fw * TILE * 0.46, def.fh * TILE * 0.22, 0, 0, Math.PI * 2);
+      else ctx.ellipse(0, 4, def.radius * 0.96, 8, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
     if (e.hp < e.maxHp && e.buildLeft <= 0) {
       const w = def.building ? def.fw * TILE * 0.7 : 22;
       const ratio = Math.max(0, e.hp / e.maxHp);
+      const y = def.building ? crown - 8 : -def.radius - 14;
       ctx.fillStyle = "rgba(0,0,0,0.55)";
-      ctx.fillRect(-w / 2, -def.radius - 14, w, 4);
+      ctx.fillRect(-w / 2, y, w, 4);
       ctx.fillStyle = ratio > 0.4 ? team : EMBER;
-      ctx.fillRect(-w / 2, -def.radius - 14, w * ratio, 4);
+      ctx.fillRect(-w / 2, y, w * ratio, 4);
     }
     ctx.restore();
   }
 
-  private drawBuilding(ctx: CanvasRenderingContext2D, e: Ent, time: number, team: string, tier = 1): void {
+  private drawBuilding(ctx: CanvasRenderingContext2D, e: Ent, time: number, team: string, tier = 1): number {
     const def = DEFS[e.kind];
-    const w = def.fw * TILE - 8;
-    const h = def.fh * TILE - 8;
-    ctx.fillStyle = "#1a222c";
-    ctx.fillRect(-w / 2, -h / 2, w, h);
-    const g = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
-    g.addColorStop(0, "#3a4656");
-    g.addColorStop(1, "#222a34");
-    ctx.fillStyle = g;
-    ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
-    ctx.fillStyle = team;
-    ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, 3);
-    if (e.kind === "spire") {
-      ctx.strokeStyle = team;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const a = (Math.PI / 3) * i - Math.PI / 2;
-        const px = Math.cos(a) * 22;
-        const py = Math.sin(a) * 22;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      ctx.stroke();
-      ctx.fillStyle = team;
-      const pulse = 4 + Math.sin(time * 3) * 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, pulse, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(231,238,242,0.7)";
-      ctx.beginPath();
-      ctx.moveTo(0, -8);
-      ctx.lineTo(0, -32);
-      ctx.stroke();
-    } else if (e.kind === "relay") {
-      ctx.fillStyle = "#121820";
-      ctx.beginPath();
-      ctx.arc(-12, 2, 10, 0, Math.PI * 2);
-      ctx.arc(12, 2, 10, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = team;
-      ctx.globalAlpha = 0.5 + Math.sin(time * 8) * 0.4;
-      ctx.beginPath();
-      ctx.moveTo(-12, 2);
-      ctx.quadraticCurveTo(0, -16 - Math.sin(time * 6) * 4, 12, 2);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    } else if (e.kind === "refinery") {
-      ctx.fillStyle = "#10161c";
-      ctx.fillRect(-w / 2 + 8, -4, w - 16, 16);
-      ctx.fillStyle = team;
-      ctx.globalAlpha = 0.8;
-      ctx.fillRect(-8, -h / 2 + 10, 16, 18);
-      ctx.globalAlpha = 1;
-    } else if (e.kind === "barracks") {
-      ctx.fillStyle = team;
-      for (let i = -1; i <= 1; i++) ctx.fillRect(i * 16 - 2, -6, 4, 16);
-    } else if (e.kind === "bay") {
-      ctx.fillStyle = "#0e141b";
-      ctx.fillRect(-w / 2 + 6, 0, w - 12, h / 2 - 6);
-      ctx.strokeStyle = team;
-      ctx.strokeRect(-w / 2 + 6, 0, w - 12, h / 2 - 6);
-    } else if (e.kind === "turret" || e.kind === "sam" || e.kind === "cannon") {
-      ctx.fillStyle = "#141a22";
-      ctx.beginPath();
-      ctx.arc(0, 0, e.kind === "cannon" ? 16 : 12, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.rotate(e.aim);
-      ctx.fillStyle = "#d5dde6";
-      if (e.kind === "sam") {
-        ctx.fillRect(0, -5, 16, 3);
-        ctx.fillRect(0, 2, 16, 3);
-      } else {
-        ctx.fillRect(0, e.kind === "cannon" ? -3 : -2, e.kind === "cannon" ? 26 : 18, e.kind === "cannon" ? 6 : 4);
-      }
-      if (e.flash > 0) {
-        ctx.fillStyle = "#fff2cc";
-        ctx.beginPath();
-        ctx.arc(e.kind === "cannon" ? 28 : 20, 0, 4, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else if (e.kind === "wall") {
-      ctx.fillStyle = "#8ea0b0";
-      ctx.fillRect(-w / 2 + 2, -4, w - 4, 8);
-    } else if (e.kind === "strip") {
-      ctx.fillStyle = "#0e141b";
-      ctx.fillRect(-w / 2 + 8, -6, w - 16, 12);
-      ctx.strokeStyle = team;
-      ctx.setLineDash([6, 4]);
-      ctx.strokeRect(-w / 2 + 8, -6, w - 16, 12);
-      ctx.setLineDash([]);
-    } else if (e.kind === "silo") {
-      ctx.strokeStyle = team;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, 12, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(0, 0, 6, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    if (tier > 1) {
-      ctx.save();
-      ctx.strokeStyle = team;
-      for (let i = 1; i < tier; i++) {
-        ctx.globalAlpha = 0.28 + i * 0.16;
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(-w / 2 - 3 - i * 3, -h / 2 - 3 - i * 3, w + 6 + i * 6, h + 6 + i * 6);
-      }
-      ctx.restore();
-      ctx.fillStyle = team;
-      ctx.globalAlpha = 0.85;
-      ctx.beginPath();
-      ctx.arc(0, 0, 3 + tier, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
-    if (e.buildLeft > 0 && e.buildTotal > 0) {
-      const p = 1 - e.buildLeft / e.buildTotal;
-      ctx.strokeStyle = "rgba(231,238,242,0.8)";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 3]);
-      ctx.strokeRect(-w / 2 - 2, -h / 2 - 2, w + 4, h + 4);
-      ctx.setLineDash([]);
-      ctx.beginPath();
-      ctx.strokeStyle = team;
-      ctx.arc(0, 0, 12, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * p);
-      ctx.stroke();
-    }
+    const progress = e.buildTotal > 0 && e.buildLeft > 0 ? Math.max(0, 1 - e.buildLeft / e.buildTotal) : 1;
+    return drawStructure(ctx, e.kind, time, team, e.team, {
+      w: def.fw * TILE - 6,
+      d: def.fh * TILE - 6,
+      tier,
+      progress,
+      hpRatio: e.maxHp > 0 ? Math.max(0, e.hp / e.maxHp) : 1,
+      aim: e.aim,
+      flash: e.flash,
+    });
   }
 
   private drawUnit(ctx: CanvasRenderingContext2D, e: Ent, _time: number, team: string): void {
