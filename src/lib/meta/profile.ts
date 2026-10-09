@@ -1,4 +1,23 @@
-export type ShopId = "crate" | "rig" | "plate" | "wing";
+export type ShopId =
+  | "crate"
+  | "rig"
+  | "plate"
+  | "wing"
+  | "vault"
+  | "squad"
+  | "eyes"
+  | "kennel"
+  | "escort"
+  | "scouts"
+  | "grid"
+  | "drum"
+  | "veil"
+  | "bomber"
+  | "hall"
+  | "cadre"
+  | "cell"
+  | "machine"
+  | "siege";
 
 export type ShopItem = {
   id: ShopId;
@@ -9,9 +28,24 @@ export type ShopItem = {
 
 export const STOCK: ShopItem[] = [
   { id: "crate", name: "Ionite crate", cost: 40, blurb: "Deploy with 600 extra ionite." },
+  { id: "vault", name: "Ion vault", cost: 80, blurb: "Deploy with 1000 extra ionite." },
   { id: "rig", name: "Spare rig", cost: 70, blurb: "A second harvester starts beside the spire." },
   { id: "plate", name: "Spire plate", cost: 90, blurb: "Command spire deploys with 500 extra hull." },
+  { id: "veil", name: "Spire veil", cost: 120, blurb: "Every unit you start with carries a shield." },
+  { id: "grid", name: "Spare relay", cost: 75, blurb: "An extra power relay is already on the grid." },
+  { id: "drum", name: "Ion drum", cost: 85, blurb: "A silo is already raised. The bank holds more." },
+  { id: "hall", name: "Raised barracks", cost: 130, blurb: "Barracks are already up, so you can train at once." },
+  { id: "squad", name: "Rifle detail", cost: 55, blurb: "Six extra riflemen on the opening line." },
+  { id: "eyes", name: "Watch post", cost: 45, blurb: "Four watches deploy ahead of the column." },
+  { id: "kennel", name: "Kennel", cost: 90, blurb: "Three patrolmen and their dogs start with you." },
+  { id: "cadre", name: "Sergeant cadre", cost: 160, blurb: "Three sergeants join the first push." },
+  { id: "cell", name: "Specops cell", cost: 210, blurb: "Two special forces deploy off the books." },
+  { id: "scouts", name: "Viper pair", cost: 95, blurb: "Two light tanks on the flank." },
+  { id: "escort", name: "Lancer escort", cost: 100, blurb: "Two line tanks roll with the column." },
+  { id: "machine", name: "Machine section", cost: 175, blurb: "A Reaver machine tank is already crewed." },
+  { id: "siege", name: "Grenade hull", cost: 200, blurb: "A Howl grenade tank starts on the line." },
   { id: "wing", name: "Reserve wing", cost: 120, blurb: "One extra Kestrel on the opening line." },
+  { id: "bomber", name: "Condor reserve", cost: 150, blurb: "A bomber is already in the climb." },
 ];
 
 export type Profile = {

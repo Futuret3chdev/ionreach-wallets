@@ -122,6 +122,7 @@ export function Ionreach() {
   const [best, setBest] = useState<number | null>(null);
   const [settings, setSettings] = useState(false);
   const [tiersOpen, setTiersOpen] = useState(false);
+  const [abilitiesOpen, setAbilitiesOpen] = useState(false);
   const [musicOn, setMusicOn] = useState(false);
   const musicOnRef = useRef(false);
   const phaseRef = useRef<Phase>("title");
@@ -448,6 +449,43 @@ export function Ionreach() {
     }
     if (gear.includes("rig")) sim.addUnit("harvester", 0, 820, 1180);
     if (gear.includes("wing")) sim.addUnit("kestrel", 0, 300, 980);
+    if (gear.includes("vault")) sim.credits[0] += 1000;
+    if (gear.includes("squad")) {
+      for (let i = 0; i < 6; i++) sim.addUnit("rifle", 0, 80 + i * 42, 1380);
+    }
+    if (gear.includes("eyes")) {
+      for (let i = 0; i < 4; i++) sim.addUnit("watch", 0, 220 + i * 40, 960);
+    }
+    if (gear.includes("kennel")) {
+      for (let i = 0; i < 3; i++) sim.addUnit("patrol", 0, 420 + i * 44, 960);
+    }
+    if (gear.includes("cadre")) {
+      for (let i = 0; i < 3; i++) sim.addUnit("sergeant", 0, 80 + i * 48, 1430);
+    }
+    if (gear.includes("cell")) {
+      sim.addUnit("specops", 0, 280, 1430);
+      sim.addUnit("specops", 0, 340, 1430);
+    }
+    if (gear.includes("escort")) {
+      sim.addUnit("lancer", 0, 980, 1170);
+      sim.addUnit("lancer", 0, 1100, 1170);
+    }
+    if (gear.includes("scouts")) {
+      sim.addUnit("viper", 0, 900, 1060);
+      sim.addUnit("viper", 0, 1020, 1060);
+    }
+    if (gear.includes("machine")) sim.addUnit("reaver", 0, 1140, 1100);
+    if (gear.includes("siege")) sim.addUnit("howl", 0, 1260, 1140);
+    if (gear.includes("bomber")) sim.addUnit("condor", 0, 1040, 980);
+    if (gear.includes("grid")) sim.addBuilding("relay", 0, 18 * 36, 38 * 36, true);
+    if (gear.includes("drum")) sim.addBuilding("silo", 0, 18 * 36, 42.5 * 36, true);
+    if (gear.includes("hall")) sim.addBuilding("barracks", 0, 6.5 * 36, 35.5 * 36, true);
+    if (gear.includes("veil")) {
+      for (const e of sim.ents) {
+        if (e.alive && e.team === 0) e.shield += 160;
+      }
+    }
+    sim.recomputeBlocks();
   }
 
   function deploy() {
@@ -464,6 +502,7 @@ export function Ionreach() {
     setHud(sim.snapshot());
     setCinema(false);
     setFlyover(true);
+    setAbilitiesOpen(false);
     setBattleKey((k) => k + 1);
     setPhase("battle");
     if (vidRef.current) vidRef.current.pause();
@@ -660,17 +699,22 @@ export function Ionreach() {
                 <button type="button" onClick={() => setTiersOpen(true)} className="mt-2 min-h-9 w-full border border-line px-2 font-display text-xs">
                   Tier map
                 </button>
-                <div className="mt-2 grid gap-1 text-left">
-                  <button type="button" onClick={() => { simRef.current?.armAbility("strike"); setHud(simRef.current?.snapshot() ?? null); }} className="min-h-8 border border-line px-2 font-display text-[11px]">
-                    Ion strike {hud && hud.ability.strike > 0 ? `${Math.ceil(hud.ability.strike)}s` : "400"}
-                  </button>
-                  <button type="button" onClick={() => { simRef.current?.armAbility("dome"); setHud(simRef.current?.snapshot() ?? null); }} className="min-h-8 border border-line px-2 font-display text-[11px]">
-                    Shield dome {hud && hud.ability.dome > 0 ? `${Math.ceil(hud.ability.dome)}s` : "500"}
-                  </button>
-                  <button type="button" onClick={() => { simRef.current?.armAbility("nuke"); setHud(simRef.current?.snapshot() ?? null); }} className="min-h-8 border border-line px-2 font-display text-[11px] text-ember">
-                    DEFCON {hud && hud.ability.nuke > 0 ? `${Math.ceil(hud.ability.nuke)}s` : "1400"}
-                  </button>
-                </div>
+                <button type="button" onClick={() => setAbilitiesOpen((open) => !open)} className="mt-1 min-h-9 w-full border border-line px-2 font-display text-xs">
+                  {abilitiesOpen ? "Close abilities" : "Abilities"}
+                </button>
+                {abilitiesOpen && (
+                  <div className="mt-2 grid gap-1 text-left">
+                    <button type="button" onClick={() => { simRef.current?.armAbility("strike"); setHud(simRef.current?.snapshot() ?? null); }} className="min-h-8 border border-line px-2 font-display text-[11px]">
+                      Ion strike {hud && hud.ability.strike > 0 ? `${Math.ceil(hud.ability.strike)}s` : "400"}
+                    </button>
+                    <button type="button" onClick={() => { simRef.current?.armAbility("dome"); setHud(simRef.current?.snapshot() ?? null); }} className="min-h-8 border border-line px-2 font-display text-[11px]">
+                      Shield dome {hud && hud.ability.dome > 0 ? `${Math.ceil(hud.ability.dome)}s` : "500"}
+                    </button>
+                    <button type="button" onClick={() => { simRef.current?.armAbility("nuke"); setHud(simRef.current?.snapshot() ?? null); }} className="min-h-8 border border-line px-2 font-display text-[11px] text-ember">
+                      DEFCON {hud && hud.ability.nuke > 0 ? `${Math.ceil(hud.ability.nuke)}s` : "1400"}
+                    </button>
+                  </div>
+                )}
               </div>
               </div>
             </header>
